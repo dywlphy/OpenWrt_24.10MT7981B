@@ -13,5 +13,8 @@
 # 添加包含 CUPS 等打印包的第三方源
 echo 'src-git cupspackages https://github.com/Gr4ffy/lede-cups.git' >> feeds.conf.default
 
+# 添加包含 helloworld 的源（你原有的）
+echo 'src-git helloworld https://github.com/fw876/helloworld' >> feeds.conf.default
+
 # 添加包含 PassWall 科学上网插件的源
 echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >> feeds.conf.default
