@@ -22,9 +22,19 @@ find package/kernel/linux/modules/ -type f -name "*hwmon*" -exec rm -f {} \;
 echo "硬件监控驱动已移除。"
 
 # 1.5 使用方法2直接克隆打印软件包源码
-echo "正在直接克隆打印软件包..."
+# ========== 正确集成新打印源 (方法3) ==========
+echo "正在使用官方 feeds 方式集成最新打印软件包..."
+
+# 1. 添加本地源指向到 feeds 配置文件
+echo "src-link printing_packages $(pwd)/package/printing-packages" >> feeds.conf.default
+
+# 2. 克隆最新打印源码
 rm -rf package/printing-packages
 git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
+
+# 3. 刷新 feeds 并安装这些新包
+./scripts/feeds update printing_packages
+./scripts/feeds install -a -p printing_packages
 
 # 2. 安装所有核心软件包
 # 路由器基础 (IPv6, UPnP, DDNS, SSH)
