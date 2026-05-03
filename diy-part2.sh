@@ -31,3 +31,11 @@
 # 5. (重要) 覆盖你本地自定义的文件，实现“立即可用”配置
 # 假设你已经在仓库里创建了 files 文件夹并放好了配置
 # cp -rf files/* ./  # 这会把 files 目录下的内容覆盖到编译根目录
+# 6. 创建服务启动软链接，确保开机自启
+mkdir -p /etc/rc.d
+ln -sf ../init.d/cupsd /etc/rc.d/S99cupsd
+ln -sf ../init.d/avahi-daemon /etc/rc.d/S98avahi
+ln -sf ../init.d/samba4 /etc/rc.d/S99samba4
+
+# 7. 如果你的固件默认IP不是192.168.1.1，这里可以改
+# sed -i 's/192.168.1.1/192.168.50.1/g' package/base-files/files/bin/config_generate
