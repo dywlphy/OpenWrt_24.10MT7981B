@@ -142,7 +142,12 @@ jobs:
         token: ${{ secrets.RELEASES_TOKEN }}
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
-        files: ${{ env.FIRMWARE }}/openwrt-*
+        files: |
+          ${{ env.FIRMWARE }}/*.img.gz
+          ${{ env.FIRMWARE }}/*.iso
+          ${{ env.FIRMWARE }}/*.vmdk
+          ${{ env.FIRMWARE }}/*.buildinfo
+          ${{ env.FIRMWARE }}/*.manifest
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@main
