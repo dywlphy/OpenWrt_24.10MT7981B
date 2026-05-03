@@ -4,15 +4,18 @@
 # 功能：安装软件包、固化配置文件、设置自启动
 #=================================================
 
-# 进入编译目录
-cd openwrt
+# 0. 确认当前位于 openwrt 目录
+echo "当前目录: $(pwd)"
+if [ ! -f "feeds.conf.default" ] && [ ! -f "Makefile" ]; then
+    echo "警告：当前似乎不在 openwrt 源码根目录！"
+fi
 
 # 1. 更新软件源
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
 # 2. 安装所有需要的软件包
-# 注意：cups 相关包可能在你的源里不存在，后面有备选方案
+# 使用 || echo 确保即使找不到包，脚本也不会中断
 ./scripts/feeds install cups 2>/dev/null || echo "cups 未在官方源找到，将尝试第三方源"
 ./scripts/feeds install cups-filters 2>/dev/null || echo "cups-filters 未在官方源找到"
 ./scripts/feeds install cups-bjnp 2>/dev/null || echo "cups-bjnp 未在官方源找到"
@@ -30,19 +33,18 @@ cd openwrt
 ./scripts/feeds install kmod-fs-ntfs 2>/dev/null || echo "kmod-fs-ntfs 未在官方源找到"
 ./scripts/feeds install block-mount 2>/dev/null || echo "block-mount 未在官方源找到"
 
-# 3. 覆盖自定义配置文件到编译目录
-# 这是“立即可用”的关键：把 files 目录下的内容复制到 openwrt/files
-if [ -d "../files" ]; then
-    cp -rf ../files/* ./files/ 2>/dev/null
-    echo "自定义配置文件已复制到编译目录"
+# 3. 覆盖自定义配置文件
+# 工作流已将仓库内的 files 目录移动到 openwrt/files，我们只需确认并补充
+if [ ! -d "./files" ]; then
+    mkdir -p ./files
 fi
+echo "自定义配置文件目录 ./files 已就绪"
 
-# 4. 在编译目录内创建自启动链接
-# 注意：现在路径是 openwrt/files/etc/rc.d/，这最终会被打包进固件
+# 4. 在预置文件目录中创建自启动配置
 mkdir -p ./files/etc/rc.d
+mkdir -p ./files/etc/init.d
 
-# 创建启动脚本（如果 cupsd 等服务的启动脚本存在的话）
-# OpenWrt 标准启动脚本一般在 package 目录下，这里手动创建一个简单的自启脚本
+# 创建统一的自启动脚本
 cat > ./files/etc/init.d/cups-autostart << 'EOF'
 #!/bin/sh /etc/rc.common
 START=99
@@ -62,16 +64,16 @@ stop() {
 EOF
 
 chmod +x ./files/etc/init.d/cups-autostart
-
-# 创建软链接（在固件内的 /etc/rc.d/ 目录下）
+# 创建软链接，指向我们刚创建的脚本
 ln -sf ../init.d/cups-autostart ./files/etc/rc.d/S99cups-autostart
 
-# 5. 确认 .config 文件存在
-if [ -f "../.config" ]; then
-    cp ../.config ./.config
-    echo ".config 已复制到编译目录"
+echo "自启动脚本 cups-autostart 已创建并设置开机启动"
+
+# 5. 确认 .config 文件
+if [ -f ".config" ]; then
+    echo ".config 文件已在编译目录中"
 else
-    echo "警告：未找到 .config 文件！"
+    echo "警告：当前目录下未找到 .config 文件！编译可能失败。"
 fi
 
 echo "diy-part2.sh 执行完毕"
