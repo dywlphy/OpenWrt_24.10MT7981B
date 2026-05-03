@@ -17,7 +17,7 @@ sed -i '/cupspackages/d' feeds.conf.default
 echo "" >> feeds.conf.default
 
 # 添加包含 CUPS 等打印包的第三方源（使用最新稳定源，版本 CUPS 2.4.12）
-echo 'src-git printing-packages https://gitee.com/master0123/openwrt-printing-packages.git;master' >> feeds.conf.default
+# echo 'src-git printing-packages https://gitee.com/master0123/openwrt-printing-packages.git;master' >> feeds.conf.default
 
 # 添加包含 SSR-Plus 科学上网插件的源（如果不存在才添加）
 if ! grep -q "helloworld" feeds.conf.default; then
