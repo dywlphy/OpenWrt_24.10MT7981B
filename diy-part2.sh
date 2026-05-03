@@ -15,6 +15,12 @@ fi
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
+# 彻底移除导致编译失败的硬件监控驱动源码
+echo "正在移除冲突的硬件监控驱动..."
+rm -rf package/kernel/linux/modules/hwmon.mk
+find package/kernel/linux/modules/ -type f -name "*hwmon*" -exec rm -f {} \;
+echo "硬件监控驱动已移除。"
+
 # 1.5 使用方法2直接克隆打印软件包源码
 echo "正在直接克隆打印软件包..."
 rm -rf package/printing-packages
