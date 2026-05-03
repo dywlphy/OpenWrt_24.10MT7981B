@@ -15,6 +15,11 @@ fi
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
+# 1.5 使用方法2直接克隆打印软件包源码
+echo "正在直接克隆打印软件包..."
+rm -rf package/printing-packages
+git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
+
 # 2. 安装所有核心软件包
 # 路由器基础 (IPv6, UPnP, DDNS, SSH)
 ./scripts/feeds install dnsmasq-full || true
