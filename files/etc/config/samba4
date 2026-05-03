@@ -1,1 +1,12 @@
+config samba
+    option name 'OpenWrt_NAS'
+    option workgroup 'WORKGROUP'
+    option charset 'UTF-8'
 
+config sambashare
+    option name 'Shared'
+    option path '/mnt/data'        # 固定共享目录
+    option read_only 'no'
+    option guest_ok 'yes'
+    option create_mask '0666'
+    option dir_mask '0777'
