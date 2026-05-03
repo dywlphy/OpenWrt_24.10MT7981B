@@ -10,12 +10,8 @@
 # See /LICENSE for more information.
 #
 
-# Uncomment a feed source
-#sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
+# 添加包含 helloworld 的源（你原有的）
+echo 'src-git helloworld https://github.com/fw876/helloworld' >> feeds.conf.default
 
-# Add a feed source
-echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
-#echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
-#!/bin/bash
-# 添加包含 CUPS 等包的第三方源
+# 添加包含 CUPS 等打印包的第三方源
 echo 'src-git cupspackages https://github.com/Gr4ffy/lede-cups.git' >> feeds.conf.default
