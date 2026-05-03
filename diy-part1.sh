@@ -16,3 +16,6 @@
 # Add a feed source
 echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
 #echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
+#!/bin/bash
+# 添加包含 CUPS 等包的第三方源
+echo 'src-git cupspackages https://github.com/Gr4ffy/lede-cups.git' >> feeds.conf.default
