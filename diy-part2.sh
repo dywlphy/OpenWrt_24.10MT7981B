@@ -13,6 +13,7 @@ fi
 
 # 1. 更新软件源
 ./scripts/feeds update -a
+sed -i 's/^#\(src-git telephony\)/\1/' feeds.conf.default
 ./scripts/feeds install -a
 
 # 彻底移除导致编译失败的硬件监控驱动源码
