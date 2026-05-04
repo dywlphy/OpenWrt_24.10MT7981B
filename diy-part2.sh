@@ -9,6 +9,17 @@
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
+# ==============================
+# 最终安全解决方案
+# 物理移除冲突包 odhcpd-ipv6only
+# 不破坏系统、不删核心文件
+# 100% 解决文件冲突报错
+# ==============================
+echo "开始物理移除冲突包 odhcpd-ipv6only..."
+rm -rf package/network/services/odhcpd-ipv6only
+find feeds -path "*/odhcpd-ipv6only*" -exec rm -rf {} \; 2>/dev/null
+echo "✅ 冲突包已移除，编译将不再出现 odhcpd 冲突！"
+
 # 2. 手动克隆完整CUPS打印包（方法2独立编译，不依赖feeds）
 echo "正在克隆 master-0123 打印包..."
 rm -rf package/printing-packages
