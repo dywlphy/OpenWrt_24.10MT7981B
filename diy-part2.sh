@@ -15,7 +15,7 @@ git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages pac
 echo "✅ 打印包克隆完成！"
 
 # 2. 生成默认配置
-make defconfig
+# make defconfig
 
 # 3. 创建自启动脚本 (保留你的功能)
 mkdir -p files/etc/init.d files/etc/rc.d
