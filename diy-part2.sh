@@ -2,27 +2,23 @@
 cd openwrt || exit 1
 
 # ==========================================
-# 终极防翻车：只做标准流程，不瞎折腾内核
+# 核心修改：严格执行 master-0123 方法2
 # ==========================================
 
-# 1. 标准流程：更新并安装 Feeds
-echo "正在更新 Feeds..."
+# 1. 标准更新 feeds
 ./scripts/feeds update -a
-echo "正在安装 Feeds..."
 ./scripts/feeds install -a
 
-# 2. 🔴 关键：强制从指定源安装 CUPS 和 SSR-Plus，防止被官方源覆盖
-echo "正在强制安装核心软件包..."
-./scripts/feeds install -a -p printing-packages cups cups-filters cups-bjnp gutenprint || true
-./scripts/feeds install -a -p small xray-core naiveproxy shadowsocks-rust || true
-./scripts/feeds install -a -p helloworld luci-app-ssr-plus || true
+# 🔴 关键：按照 README 方法2，手动 clone 打印包到 package/ 目录
+echo "正在克隆 master-0123 打印包..."
+rm -rf package/printing-packages
+git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
+echo "✅ 打印包克隆完成！"
 
-# 3. 🔴 关键：让系统根据 .config 自动补全所有缺失的默认配置
-#    这一步能解决 90% 的「缺这个缺那个」的报错
-echo "正在生成默认配置..."
+# 2. 生成默认配置
 make defconfig
 
-# 4. 创建自启动脚本 (保留你的功能)
+# 3. 创建自启动脚本 (保留你的功能)
 mkdir -p files/etc/init.d files/etc/rc.d
 
 cat > files/etc/init.d/custom-autostart << 'EOF'
@@ -70,4 +66,4 @@ EOF
 chmod +x files/etc/init.d/auto-share-init
 ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
 
-echo "✅ diy-part2.sh 执行完成，未破坏内核，配置已补全！"
+echo "✅ diy-part2.sh 执行完成！"
