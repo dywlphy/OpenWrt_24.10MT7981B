@@ -1,25 +1,28 @@
 #!/bin/bash
 
 # ==========================================
-# 核心修改：严格执行 master-0123 方法2
+# 最终安全版：无make defconfig 不覆盖自定义.config
+# 保留打印包克隆 + 自启动 + ksmbd自动共享全部功能
 # ==========================================
 
-# 1. 标准更新 feeds
+# 1. 标准更新feeds索引
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
-# 🔴 关键：按照 README 方法2，手动 clone 打印包到 package/ 目录
+# 2. 手动克隆完整CUPS打印包（方法2独立编译，不依赖feeds）
 echo "正在克隆 master-0123 打印包..."
 rm -rf package/printing-packages
 git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
-echo "✅ 打印包克隆完成！"
+echo "✅ 打印包克隆完成"
 
-# 2. 生成默认配置
-# make defconfig
+# 3. 兜底强制禁用循环依赖插件，双层保险
+sed -i 's/^CONFIG_PACKAGE_luci-app-fchomo=.*/CONFIG_PACKAGE_luci-app-fchomo=n/' .config
+sed -i 's/^CONFIG_PACKAGE_nikki=.*/CONFIG_PACKAGE_nikki=n/' .config
 
-# 3. 创建自启动脚本 (保留你的功能)
+# 4. 创建自启动目录结构
 mkdir -p files/etc/init.d files/etc/rc.d
 
+# 5. 自定义服务自启动脚本
 cat > files/etc/init.d/custom-autostart << 'EOF'
 #!/bin/sh /etc/rc.common
 START=99
@@ -34,6 +37,7 @@ EOF
 chmod +x files/etc/init.d/custom-autostart
 ln -sf ../init.d/custom-autostart files/etc/rc.d/S99custom-autostart
 
+# 6. 自动识别最大空闲分区 自动创建ksmbd共享脚本
 cat > files/etc/init.d/auto-share-init << 'EOF'
 #!/bin/sh /etc/rc.common
 START=98
@@ -65,4 +69,4 @@ EOF
 chmod +x files/etc/init.d/auto-share-init
 ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
 
-echo "✅ diy-part2.sh 执行完成！"
+echo "✅ diy-part2.sh 执行完成：无覆盖配置、所有功能已部署"
