@@ -1,7 +1,7 @@
 # ============================================================
 # 适用于：终极稳定版 x86_64 OpenWrt
 # 核心：CUPS + SSR-Plus + ksmbd
-# 说明：已将 feeds 安装和 defconfig 控制权交给 diy-part2.sh
+# 说明：feeds 安装和 defconfig 由 diy-part2.sh 完全控制
 # ============================================================
 
 name: OpenWrt Builder
@@ -37,7 +37,6 @@ jobs:
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force
         sudo -E apt-get -qq update
-        # 关键：包含 cups 编译依赖
         sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool llvm lrzsz libnsl-dev ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev cups libcups2-dev
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
@@ -59,11 +58,8 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
 
-    # 更新 feeds (安装交给 diy-part2.sh 按需执行)
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
-
-    # 原模板的“Install feeds”步骤已删除，改为在 diy-part2.sh 中按需安装
 
     - name: Load custom configuration
       run: |
@@ -77,8 +73,7 @@ jobs:
       id: package
       run: |
         cd openwrt
-        # make defconfig  # 🔴 屏蔽此命令，防止覆盖自定义 .config
-        make download -j8
+        make download -j8 || make download -j1 V=s
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
@@ -87,7 +82,7 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j8 || make -j8 V=s
+        make -j$(nproc) || make -j8 || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
