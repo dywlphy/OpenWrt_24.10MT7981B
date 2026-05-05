@@ -164,4 +164,11 @@ EOF
 chmod +x files/etc/init.d/auto-share-init
 ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
 
+# ---------- 修复 default-settings 强制依赖 luci-compat ----------
+DEFAULT_SETTINGS_MAKEFILE="package/lean/default-settings/Makefile"
+if [ -f "$DEFAULT_SETTINGS_MAKEFILE" ]; then
+  sed -i 's/+luci-compat//g' "$DEFAULT_SETTINGS_MAKEFILE"
+  echo "✅ 已移除 default-settings 对 luci-compat 的依赖"
+fi
+
 echo "✅ diy-part2.sh 执行完成"
