@@ -1,39 +1,72 @@
 #!/bin/bash
 
 # ==========================================
-# 最终安全版：无make defconfig 不覆盖自定义.config
-# 保留打印包克隆 + 自启动 + ksmbd自动共享全部功能
+# 依赖安装 + 自启动脚本 + 自动共享
 # ==========================================
 
-# 1. 标准更新feeds索引
+# ---------- 1. 更新 feeds ----------
 ./scripts/feeds update -a
-./scripts/feeds install -a
 
-# ==============================
-# 最终安全解决方案
-# 物理移除冲突包 odhcpd-ipv6only
-# 不破坏系统、不删核心文件
-# 100% 解决文件冲突报错
-# ==============================
-echo "开始物理移除冲突包 odhcpd-ipv6only..."
+# 物理移除冲突包
+echo "移除冲突包 odhcpd-ipv6only..."
 rm -rf package/network/services/odhcpd-ipv6only
 find feeds -path "*/odhcpd-ipv6only*" -exec rm -rf {} \; 2>/dev/null
-echo "✅ 冲突包已移除，编译将不再出现 odhcpd 冲突！"
+echo "✅ 冲突包已移除"
 
-# 2. 手动克隆完整CUPS打印包（方法2独立编译，不依赖feeds）
-echo "正在克隆 master-0123 打印包..."
+# ---------- 2. 按需安装 feeds 包 ----------
+# 只安装必需包，避免拉入冗余
+echo "按需安装 feeds 包..."
+
+# 基础 LuCI 依赖
+./scripts/feeds install luci
+./scripts/feeds install luci-i18n-base-zh-cn
+
+# 网络相关
+./scripts/feeds install luci-proto-ipv6
+./scripts/feeds install miniupnpd
+./scripts/feeds install luci-app-upnp
+./scripts/feeds install ddns-scripts
+./scripts/feeds install luci-app-ddns
+
+# SSR-Plus
+./scripts/feeds install luci-app-ssr-plus
+./scripts/feeds install shadowsocksr-libev
+
+# ksmbd
+./scripts/feeds install ksmbd-server
+./scripts/feeds install luci-app-ksmbd
+
+# CUPS 依赖
+./scripts/feeds install cups
+./scripts/feeds install cups-filters
+./scripts/feeds install cups-bjnp
+./scripts/feeds install gutenprint
+./scripts/feeds install foomatic-db
+./scripts/feeds install foomatic-db-engine
+./scripts/feeds install avahi-daemon
+./scripts/feeds install avahi-utils
+./scripts/feeds install dbus
+./scripts/feeds install libusb-1.0
+
+echo "✅ feeds 包安装完成"
+
+# ---------- 3. 克隆打印包 ----------
+echo "克隆打印包..."
 rm -rf package/printing-packages
 git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
+# 修复 cairo 对 libmesa 的依赖警告（如果存在）
+sed -i 's/+libmesa//g' package/printing-packages/cairo/Makefile 2>/dev/null
 echo "✅ 打印包克隆完成"
 
-# 3. 兜底强制禁用循环依赖插件，双层保险
+# ---------- 4. 兜底禁用循环依赖 ----------
 sed -i 's/^CONFIG_PACKAGE_luci-app-fchomo=.*/CONFIG_PACKAGE_luci-app-fchomo=n/' .config
 sed -i 's/^CONFIG_PACKAGE_nikki=.*/CONFIG_PACKAGE_nikki=n/' .config
+sed -i 's/^CONFIG_PACKAGE_mihomo=.*/CONFIG_PACKAGE_mihomo=n/' .config
 
-# 4. 创建自启动目录结构
+# ---------- 5. 创建自启动目录 ----------
 mkdir -p files/etc/init.d files/etc/rc.d
 
-# 5. 自定义服务自启动脚本
+# ---------- 6. 服务自启动脚本 ----------
 cat > files/etc/init.d/custom-autostart << 'EOF'
 #!/bin/sh /etc/rc.common
 START=99
@@ -48,7 +81,7 @@ EOF
 chmod +x files/etc/init.d/custom-autostart
 ln -sf ../init.d/custom-autostart files/etc/rc.d/S99custom-autostart
 
-# 6. 自动识别最大空闲非系统分区 + 占用剩余空间60%做共享（最佳融合版）
+# ---------- 7. 自动共享脚本 ----------
 cat > files/etc/init.d/auto-share-init << 'EOF'
 #!/bin/sh /etc/rc.common
 START=98
@@ -57,21 +90,18 @@ boot() { sleep 15; start; }
 start() {
     echo "开始自动探测可用存储空间..."
 
-    # 先获取系统根分区的设备名，用于排除系统盘
     root_dev="$(df -k / | awk 'NR==2{print $1}')"
     BEST_PART=""
     BEST_FREE=0
     TOTAL_KB=0
     IS_SYSTEM_PART=0
 
-    # 第一步：遍历所有 /mnt 下的挂载点，优先找【非系统盘】
+    # 优先找非系统盘的外接磁盘
     for part in /mnt/*; do
         if mountpoint -q "$part" 2>/dev/null; then
             dev=$(df -k "$part" | awk 'NR==2{print $1}')
             total_kb=$(df -k "$part" | awk 'NR==2{print $2}')
             free_kb=$(df -k "$part" | awk 'NR==2{print $4}')
-            
-            # 只选择【不是系统分区】的外接磁盘
             if [ "$dev" != "$root_dev" ] && [ "$free_kb" -gt "$BEST_FREE" ]; then
                 BEST_FREE=$free_kb
                 TOTAL_KB=$total_kb
@@ -81,7 +111,7 @@ start() {
         fi
     done
 
-    # 第二步：如果没找到外接盘 → 降级使用系统分区（/overlay 或 /）
+    # 降级：使用系统分区
     if [ -z "$BEST_PART" ]; then
         for part in /overlay /; do
             if mountpoint -q "$part" 2>/dev/null; then
@@ -96,25 +126,19 @@ start() {
         done
     fi
 
-    # 如果任何分区都找不到，退出
     if [ -z "$BEST_PART" ]; then
         echo "未找到可用存储分区，跳过共享配置。"
         return 0
     fi
 
-    # 计算共享目录路径
     SHARE_DIR="$BEST_PART/OpenWrt_Share"
     mkdir -p "$SHARE_DIR"
     chmod 0777 "$SHARE_DIR"
 
-    # 核心：只使用 60% 剩余空间（不写满盘）
     free_kb=$(df -k "$BEST_PART" | awk 'NR==2{print $4}')
     use_kb=$((free_kb * 60 / 100))
-
-    # 创建一个控制文件，标记建议最大使用空间
     echo "$use_kb" > "$SHARE_DIR/.size_limit_kb"
 
-    # 清空旧共享，添加新共享
     while uci delete ksmbd.@share[0] 2>/dev/null; do :; done
     uci add ksmbd share
     uci set ksmbd.@share[-1].name='Auto_Share'
@@ -127,7 +151,6 @@ start() {
     uci commit ksmbd
     /etc/init.d/ksmbd restart
 
-    # 写入 README 说明文件
     TOTAL_MB=$((TOTAL_KB / 1024))
     SHARE_MB=$((use_kb / 1024))
     echo "自动共享配置完成！" > "$SHARE_DIR/README.txt"
@@ -139,7 +162,6 @@ start() {
     fi
     echo "共享空间上限(60%剩余空间)：${SHARE_MB}MB" >> "$SHARE_DIR/README.txt"
     echo "此目录为自动共享目录，可自由读写。" >> "$SHARE_DIR/README.txt"
-    echo "注意：实际可用空间以磁盘剩余空间为准，建议不超过上述上限。" >> "$SHARE_DIR/README.txt"
 
     echo "自动共享初始化完成：$SHARE_DIR (总容量: ${TOTAL_MB}MB, 共享上限: ${SHARE_MB}MB)"
 }
@@ -151,4 +173,4 @@ EOF
 chmod +x files/etc/init.d/auto-share-init
 ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
 
-echo "✅ diy-part2.sh 执行完成：无覆盖配置、所有功能已部署"
+echo "✅ diy-part2.sh 执行完成"
