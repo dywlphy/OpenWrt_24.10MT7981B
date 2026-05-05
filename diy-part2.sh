@@ -36,7 +36,7 @@ echo "按需安装 feeds 包..."
 ./scripts/feeds install ksmbd-server
 ./scripts/feeds install luci-app-ksmbd
 
-# CUPS 依赖
+# CUPS 依赖（完整保留 avahi-utils 保证打印机发现）
 ./scripts/feeds install cups
 ./scripts/feeds install cups-filters
 ./scripts/feeds install cups-bjnp
