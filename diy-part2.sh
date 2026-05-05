@@ -171,4 +171,11 @@ if [ -f "$DEFAULT_SETTINGS_MAKEFILE" ]; then
   echo "✅ 已移除 default-settings 对 luci-compat 的依赖"
 fi
 
+# ---------- 修复 default-settings 强制依赖 luci-compat ----------
+DEFAULT_SETTINGS_MAKEFILE="package/lean/default-settings/Makefile"
+if [ -f "$DEFAULT_SETTINGS_MAKEFILE" ]; then
+  sed -i 's/+luci-compat//g' "$DEFAULT_SETTINGS_MAKEFILE"
+  echo "✅ 已移除 default-settings 对 luci-compat 的依赖"
+fi
+
 echo "✅ diy-part2.sh 执行完成"
