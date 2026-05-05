@@ -14,29 +14,19 @@ find feeds -path "*/odhcpd-ipv6only*" -exec rm -rf {} \; 2>/dev/null
 echo "✅ 冲突包已移除"
 
 # ---------- 2. 按需安装 feeds 包 ----------
-# 只安装必需包，避免拉入冗余
 echo "按需安装 feeds 包..."
 
-# 基础 LuCI 依赖
 ./scripts/feeds install luci
 ./scripts/feeds install luci-i18n-base-zh-cn
-
-# 网络相关
 ./scripts/feeds install luci-proto-ipv6
 ./scripts/feeds install miniupnpd
 ./scripts/feeds install luci-app-upnp
 ./scripts/feeds install ddns-scripts
 ./scripts/feeds install luci-app-ddns
-
-# SSR-Plus
 ./scripts/feeds install luci-app-ssr-plus
 ./scripts/feeds install shadowsocksr-libev
-
-# ksmbd
 ./scripts/feeds install ksmbd-server
 ./scripts/feeds install luci-app-ksmbd
-
-# CUPS 依赖（完整保留 avahi-utils 保证打印机发现）
 ./scripts/feeds install cups
 ./scripts/feeds install cups-filters
 ./scripts/feeds install cups-bjnp
@@ -50,18 +40,21 @@ echo "按需安装 feeds 包..."
 
 echo "✅ feeds 包安装完成"
 
-# ---------- 3. 克隆打印包 ----------
+# ---------- 3. 克隆打印包（增加重试） ----------
 echo "克隆打印包..."
 rm -rf package/printing-packages
+git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages || \
 git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
-# 修复 cairo 对 libmesa 的依赖警告（如果存在）
 sed -i 's/+libmesa//g' package/printing-packages/cairo/Makefile 2>/dev/null
 echo "✅ 打印包克隆完成"
 
-# ---------- 4. 兜底禁用循环依赖 ----------
-sed -i 's/^CONFIG_PACKAGE_luci-app-fchomo=.*/CONFIG_PACKAGE_luci-app-fchomo=n/' .config
-sed -i 's/^CONFIG_PACKAGE_nikki=.*/CONFIG_PACKAGE_nikki=n/' .config
-sed -i 's/^CONFIG_PACKAGE_mihomo=.*/CONFIG_PACKAGE_mihomo=n/' .config
+# ---------- 4. 兜底禁用循环依赖（先删后加，确保生效） ----------
+sed -i '/CONFIG_PACKAGE_luci-app-fchomo/d' .config
+sed -i '/CONFIG_PACKAGE_nikki/d' .config
+sed -i '/CONFIG_PACKAGE_mihomo/d' .config
+echo "CONFIG_PACKAGE_luci-app-fchomo=n" >> .config
+echo "CONFIG_PACKAGE_nikki=n" >> .config
+echo "CONFIG_PACKAGE_mihomo=n" >> .config
 
 # ---------- 5. 创建自启动目录 ----------
 mkdir -p files/etc/init.d files/etc/rc.d
@@ -96,7 +89,6 @@ start() {
     TOTAL_KB=0
     IS_SYSTEM_PART=0
 
-    # 优先找非系统盘的外接磁盘
     for part in /mnt/*; do
         if mountpoint -q "$part" 2>/dev/null; then
             dev=$(df -k "$part" | awk 'NR==2{print $1}')
@@ -111,7 +103,6 @@ start() {
         fi
     done
 
-    # 降级：使用系统分区
     if [ -z "$BEST_PART" ]; then
         for part in /overlay /; do
             if mountpoint -q "$part" 2>/dev/null; then
