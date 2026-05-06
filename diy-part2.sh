@@ -83,7 +83,17 @@ echo "✅ feeds 包安装完成"
 # ---------- 3. 克隆 CUPS 全功能打印包 ----------
 echo "克隆 CUPS 全功能打印包..."
 rm -rf package/printing-packages
-git clone --depth=1 https://github.com/mykarlo/openwrt-printing-packages.git package/printing-packages
+
+# 更换为 Git 协议和稳定的源，包含 cups, cups-filters, gutenprint, foomatic-db 等
+git clone --depth=1 git://github.com/wlallemand/openwrt-printing.git package/printing-packages
+
+# 移除无关的包，只保留 CUPS 核心套件
+rm -rf package/printing-packages/hplip \
+       package/printing-packages/sane-backends \
+       package/printing-packages/ghostscript \
+       package/printing-packages/qpdf \
+       package/printing-packages/poppler
+
 echo "✅ CUPS 打印包克隆完成"
 
 # ---------- 验证打印包是否存在 ----------
