@@ -62,6 +62,21 @@ echo "按需安装 feeds 包..."
 ./scripts/feeds install libsane
 ./scripts/feeds install liblzo
 
+# 实用小功能
+./scripts/feeds install luci-app-autoreboot
+./scripts/feeds install luci-app-watchcat
+./scripts/feeds install luci-app-commands
+./scripts/feeds install luci-app-wol
+./scripts/feeds install luci-app-adblock
+./scripts/feeds install luci-app-sqm
+./scripts/feeds install iperf3
+./scripts/feeds install luci-app-nlbwmon
+./scripts/feeds install htop
+./scripts/feeds install luci-app-usb-printer
+./scripts/feeds install luci-app-diskman
+./scripts/feeds install vlmcsd
+./scripts/feeds install luci-app-vlmcsd
+
 # wget-ssl（ddns 依赖）
 ./scripts/feeds install wget-ssl
 
