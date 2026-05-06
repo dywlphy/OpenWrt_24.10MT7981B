@@ -96,32 +96,44 @@ echo "✅ 打印包克隆完成"
 
 # ---------- 验证打印包是否存在 ----------
 echo "验证打印包..."
-if [ -f "package/printing-packages/cups/Makefile" ]; then
+echo "printing-packages 目录结构："
+find package/printing-packages -name "Makefile" | sort
+
+# 用 find 查找所有 Makefile，判断包含目标包的
+CUPS_COUNT=$(find package/printing-packages -name "Makefile" | wc -l)
+echo "找到 ${CUPS_COUNT} 个 Makefile"
+
+if find package/printing-packages -path "*/cups/Makefile" | grep -q .; then
     echo "✅ cups Makefile 存在"
 else
     echo "❌ 警告：cups Makefile 不存在！"
 fi
-if [ -f "package/printing-packages/cups-filters/Makefile" ]; then
+
+if find package/printing-packages -path "*/cups-filters/Makefile" | grep -q .; then
     echo "✅ cups-filters Makefile 存在"
 else
     echo "❌ 警告：cups-filters Makefile 不存在！"
 fi
-if [ -f "package/printing-packages/cups-bjnp/Makefile" ]; then
+
+if find package/printing-packages -path "*/cups-bjnp/Makefile" | grep -q .; then
     echo "✅ cups-bjnp Makefile 存在"
 else
     echo "❌ 警告：cups-bjnp Makefile 不存在！"
 fi
-if [ -f "package/printing-packages/gutenprint/Makefile" ]; then
+
+if find package/printing-packages -path "*/gutenprint/Makefile" | grep -q .; then
     echo "✅ gutenprint Makefile 存在"
 else
     echo "❌ 警告：gutenprint Makefile 不存在！"
 fi
-if [ -f "package/printing-packages/foomatic-db/Makefile" ]; then
+
+if find package/printing-packages -path "*/foomatic-db/Makefile" | grep -q .; then
     echo "✅ foomatic-db Makefile 存在"
 else
     echo "❌ 警告：foomatic-db Makefile 不存在！"
 fi
-if [ -f "package/printing-packages/foomatic-db-engine/Makefile" ]; then
+
+if find package/printing-packages -path "*/foomatic-db-engine/Makefile" | grep -q .; then
     echo "✅ foomatic-db-engine Makefile 存在"
 else
     echo "❌ 警告：foomatic-db-engine Makefile 不存在！"
