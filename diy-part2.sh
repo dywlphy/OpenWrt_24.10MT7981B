@@ -80,51 +80,11 @@ echo "按需安装 feeds 包..."
 
 echo "✅ feeds 包安装完成"
 
-# ---------- 3. 克隆官方 CUPS 全功能打印包 ----------
-echo "克隆官方 CUPS 全功能打印包..."
+# ---------- 3. 克隆 CUPS 全功能打印包 ----------
+echo "克隆 CUPS 全功能打印包..."
 rm -rf package/printing-packages
-mkdir -p package/printing-packages
-
-# 逐个克隆所需的官方包
-clone_pkg() {
-    local pkg_path="$1"
-    local pkg_name=$(basename "$pkg_path")
-    echo "  cloning ${pkg_name}..."
-    git clone --depth=1 "https://github.com/openwrt/packages.git" "package/printing-packages/${pkg_name}" 2>/dev/null && \
-    mv "package/printing-packages/${pkg_name}/${pkg_path}" "package/printing-packages/${pkg_name}-tmp" 2>/dev/null && \
-    rm -rf "package/printing-packages/${pkg_name}" && \
-    mv "package/printing-packages/${pkg_name}-tmp" "package/printing-packages/${pkg_name}" 2>/dev/null
-    return $?
-}
-
-# CUPS 核心
-git clone --depth=1 --filter=blob:none --sparse https://github.com/openwrt/packages.git package/cups-tmp
-cd package/cups-tmp
-git sparse-checkout set net/cups net/cups-filters net/cups-bjnp
-cd ../..
-mkdir -p package/printing-packages
-for d in net/cups net/cups-filters net/cups-bjnp; do
-  if [ -d "package/cups-tmp/$d" ]; then
-    pkg_name=$(basename "$d")
-    cp -r "package/cups-tmp/$d" "package/printing-packages/$pkg_name"
-  fi
-done
-rm -rf package/cups-tmp
-
-# Gutenprint / Foomatic / HPLIP
-git clone --depth=1 --filter=blob:none --sparse https://github.com/openwrt/packages.git package/utils-tmp
-cd package/utils-tmp
-git sparse-checkout set utils/gutenprint utils/foomatic-db utils/foomatic-db-engine utils/hplip
-cd ../..
-for d in utils/gutenprint utils/foomatic-db utils/foomatic-db-engine utils/hplip; do
-  if [ -d "package/utils-tmp/$d" ]; then
-    pkg_name=$(basename "$d")
-    cp -r "package/utils-tmp/$d" "package/printing-packages/$pkg_name"
-  fi
-done
-rm -rf package/utils-tmp
-
-echo "✅ 全功能 CUPS 打印包克隆完成"
+git clone --depth=1 https://github.com/mykarlo/openwrt-printing-packages.git package/printing-packages
+echo "✅ CUPS 打印包克隆完成"
 
 # ---------- 验证打印包是否存在 ----------
 echo "验证打印包..."
