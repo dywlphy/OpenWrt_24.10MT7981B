@@ -79,6 +79,10 @@ echo "按需安装 feeds 包..."
 
 # wget-ssl（ddns 依赖）
 ./scripts/feeds install wget-ssl
+# autocore 依赖
+./scripts/feeds install bc
+./scripts/feeds install pciutils
+./scripts/feeds install lm-sensors
 
 echo "✅ feeds 包安装完成"
 
