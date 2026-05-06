@@ -38,18 +38,12 @@ echo "按需安装 feeds 包..."
 ./scripts/feeds install shadowsocksr-libev
 ./scripts/feeds install ksmbd-server
 ./scripts/feeds install luci-app-ksmbd
-./scripts/feeds install cups
-./scripts/feeds install cups-filters
-./scripts/feeds install cups-bjnp
-./scripts/feeds install gutenprint
-./scripts/feeds install foomatic-db
-./scripts/feeds install foomatic-db-engine
 ./scripts/feeds install avahi-daemon
 ./scripts/feeds install avahi-utils
 ./scripts/feeds install dbus
 ./scripts/feeds install libusb-1.0
 
-# 打印所需底层库
+# ---------- 打印所需全部底层库 ----------
 ./scripts/feeds install libpng
 ./scripts/feeds install libfreetype
 ./scripts/feeds install fontconfig
@@ -61,8 +55,14 @@ echo "按需安装 feeds 包..."
 ./scripts/feeds install nspr
 ./scripts/feeds install libsane
 ./scripts/feeds install liblzo
+./scripts/feeds install cups
+./scripts/feeds install cups-filters
+./scripts/feeds install cups-bjnp
+./scripts/feeds install gutenprint
+./scripts/feeds install foomatic-db
+./scripts/feeds install foomatic-db-engine
 
-# 实用小功能
+# ---------- 实用小功能 ----------
 ./scripts/feeds install luci-app-autoreboot
 ./scripts/feeds install luci-app-watchcat
 ./scripts/feeds install luci-app-commands
@@ -93,6 +93,59 @@ git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages pac
 git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
 sed -i 's/+libmesa//g' package/printing-packages/cairo/Makefile 2>/dev/null
 echo "✅ 打印包克隆完成"
+
+# ---------- 验证打印包是否存在 ----------
+echo "验证打印包..."
+if [ -f "package/printing-packages/cups/Makefile" ]; then
+    echo "✅ cups Makefile 存在"
+else
+    echo "❌ 警告：cups Makefile 不存在！"
+fi
+if [ -f "package/printing-packages/cups-filters/Makefile" ]; then
+    echo "✅ cups-filters Makefile 存在"
+else
+    echo "❌ 警告：cups-filters Makefile 不存在！"
+fi
+if [ -f "package/printing-packages/cups-bjnp/Makefile" ]; then
+    echo "✅ cups-bjnp Makefile 存在"
+else
+    echo "❌ 警告：cups-bjnp Makefile 不存在！"
+fi
+if [ -f "package/printing-packages/gutenprint/Makefile" ]; then
+    echo "✅ gutenprint Makefile 存在"
+else
+    echo "❌ 警告：gutenprint Makefile 不存在！"
+fi
+if [ -f "package/printing-packages/foomatic-db/Makefile" ]; then
+    echo "✅ foomatic-db Makefile 存在"
+else
+    echo "❌ 警告：foomatic-db Makefile 不存在！"
+fi
+if [ -f "package/printing-packages/foomatic-db-engine/Makefile" ]; then
+    echo "✅ foomatic-db-engine Makefile 存在"
+else
+    echo "❌ 警告：foomatic-db-engine Makefile 不存在！"
+fi
+
+# ---------- 强制启用 CUPS 相关包到 .config ----------
+echo "强制启用 CUPS 相关包..."
+sed -i '/CONFIG_PACKAGE_cups/d' .config
+sed -i '/CONFIG_PACKAGE_cups-filters/d' .config
+sed -i '/CONFIG_PACKAGE_cups-bjnp/d' .config
+sed -i '/CONFIG_PACKAGE_gutenprint/d' .config
+sed -i '/CONFIG_PACKAGE_foomatic-db/d' .config
+sed -i '/CONFIG_PACKAGE_foomatic-db-engine/d' .config
+echo "CONFIG_PACKAGE_cups=y" >> .config
+echo "CONFIG_PACKAGE_cups-filters=y" >> .config
+echo "CONFIG_PACKAGE_cups-bjnp=y" >> .config
+echo "CONFIG_PACKAGE_gutenprint=y" >> .config
+echo "CONFIG_PACKAGE_foomatic-db=y" >> .config
+echo "CONFIG_PACKAGE_foomatic-db-engine=y" >> .config
+echo "CONFIG_PACKAGE_libusb-1.0=y" >> .config
+echo "CONFIG_PACKAGE_avahi-daemon=y" >> .config
+echo "CONFIG_PACKAGE_avahi-utils=y" >> .config
+echo "CONFIG_PACKAGE_dbus=y" >> .config
+echo "✅ CUPS 相关包强制启用完成"
 
 # ---------- 4. 兜底禁用循环依赖（先删后加，确保生效） ----------
 sed -i '/CONFIG_PACKAGE_luci-app-fchomo/d' .config
