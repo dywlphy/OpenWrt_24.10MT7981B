@@ -83,59 +83,46 @@ echo "✅ feeds 包安装完成"
 # ---------- 3. 克隆官方 CUPS 全功能打印包 ----------
 echo "克隆官方 CUPS 全功能打印包..."
 rm -rf package/printing-packages
-
-# 从 OpenWrt 官方 packages feed 获取完整 CUPS 套件
-git clone --depth=1 --filter=blob:none --sparse https://github.com/openwrt/packages.git package/printing-packages-tmp
-cd package/printing-packages-tmp
-git sparse-checkout set \
-    net/cups \
-    net/cups-filters \
-    net/cups-bjnp \
-    net/avahi \
-    net/cups-ipp-usb \
-    utils/cups \
-    utils/gutenprint \
-    utils/foomatic-db \
-    utils/foomatic-db-engine \
-    utils/hplip \
-    utils/qpdf \
-    utils/poppler \
-    utils/poppler-data \
-    utils/ghostscript \
-    utils/ghostscript-fonts-std \
-    libs/libcups \
-    libs/libcupsfilters \
-    libs/libcupsimage \
-    libs/libexif \
-    libs/libjpeg-turbo \
-    libs/libpng \
-    libs/freetype \
-    libs/fontconfig \
-    libs/pixman \
-    libs/cairo \
-    libs/tiff \
-    libs/lcms2 \
-    libs/nspr \
-    libs/nss \
-    libs/libsane \
-    libs/libusb-1.0 \
-    libs/libieee1284 \
-    libs/libgphoto2 \
-    libs/liblqr \
-    libs/libunistring \
-    libs/lzo \
-    libs/libmd \
-    lang/python/python3 \
-    lang/python/python3-packages
-cd ../..
-# 整理目录结构
 mkdir -p package/printing-packages
-for dir in net utils libs lang; do
-  if [ -d "package/printing-packages-tmp/$dir" ]; then
-    cp -r package/printing-packages-tmp/$dir/* package/printing-packages/ 2>/dev/null
+
+# 逐个克隆所需的官方包
+clone_pkg() {
+    local pkg_path="$1"
+    local pkg_name=$(basename "$pkg_path")
+    echo "  cloning ${pkg_name}..."
+    git clone --depth=1 "https://github.com/openwrt/packages.git" "package/printing-packages/${pkg_name}" 2>/dev/null && \
+    mv "package/printing-packages/${pkg_name}/${pkg_path}" "package/printing-packages/${pkg_name}-tmp" 2>/dev/null && \
+    rm -rf "package/printing-packages/${pkg_name}" && \
+    mv "package/printing-packages/${pkg_name}-tmp" "package/printing-packages/${pkg_name}" 2>/dev/null
+    return $?
+}
+
+# CUPS 核心
+git clone --depth=1 --filter=blob:none --sparse https://github.com/openwrt/packages.git package/cups-tmp
+cd package/cups-tmp
+git sparse-checkout set net/cups net/cups-filters net/cups-bjnp
+cd ../..
+mkdir -p package/printing-packages
+for d in net/cups net/cups-filters net/cups-bjnp; do
+  if [ -d "package/cups-tmp/$d" ]; then
+    pkg_name=$(basename "$d")
+    cp -r "package/cups-tmp/$d" "package/printing-packages/$pkg_name"
   fi
 done
-rm -rf package/printing-packages-tmp
+rm -rf package/cups-tmp
+
+# Gutenprint / Foomatic / HPLIP
+git clone --depth=1 --filter=blob:none --sparse https://github.com/openwrt/packages.git package/utils-tmp
+cd package/utils-tmp
+git sparse-checkout set utils/gutenprint utils/foomatic-db utils/foomatic-db-engine utils/hplip
+cd ../..
+for d in utils/gutenprint utils/foomatic-db utils/foomatic-db-engine utils/hplip; do
+  if [ -d "package/utils-tmp/$d" ]; then
+    pkg_name=$(basename "$d")
+    cp -r "package/utils-tmp/$d" "package/printing-packages/$pkg_name"
+  fi
+done
+rm -rf package/utils-tmp
 
 echo "✅ 全功能 CUPS 打印包克隆完成"
 
