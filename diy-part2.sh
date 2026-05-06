@@ -11,6 +11,17 @@
 echo "移除冲突包 odhcpd-ipv6only..."
 rm -rf package/network/services/odhcpd-ipv6only
 find feeds -path "*/odhcpd-ipv6only*" -exec rm -rf {} \; 2>/dev/null
+
+# 移除 autosamba（我们使用 ksmbd，不需要这个）
+rm -rf package/lean/autosamba
+find feeds -path "*/autosamba*" -exec rm -rf {} \; 2>/dev/null
+echo "✅ autosamba 已移除"
+
+# 移除 LEDE 自带的 ddns-scripts_aliyun/dnspod，使用 feeds 版本代替
+rm -rf package/lean/ddns-scripts_aliyun
+rm -rf package/lean/ddns-scripts_dnspod
+echo "✅ 已移除 LEDE 自带的 ddns-scripts_aliyun/dnspod"
+
 echo "✅ 冲突包已移除"
 
 # ---------- 2. 按需安装 feeds 包 ----------
@@ -37,6 +48,22 @@ echo "按需安装 feeds 包..."
 ./scripts/feeds install avahi-utils
 ./scripts/feeds install dbus
 ./scripts/feeds install libusb-1.0
+
+# 打印所需底层库
+./scripts/feeds install libpng
+./scripts/feeds install libfreetype
+./scripts/feeds install fontconfig
+./scripts/feeds install pixman
+./scripts/feeds install libexif
+./scripts/feeds install libjpeg-turbo
+./scripts/feeds install tiff
+./scripts/feeds install libnss
+./scripts/feeds install nspr
+./scripts/feeds install libsane
+./scripts/feeds install liblzo
+
+# wget-ssl（ddns 依赖）
+./scripts/feeds install wget-ssl
 
 echo "✅ feeds 包安装完成"
 
@@ -171,11 +198,8 @@ if [ -f "$DEFAULT_SETTINGS_MAKEFILE" ]; then
   echo "✅ 已移除 default-settings 对 luci-compat 的依赖"
 fi
 
-# ---------- 修复 default-settings 强制依赖 luci-compat ----------
-DEFAULT_SETTINGS_MAKEFILE="package/lean/default-settings/Makefile"
-if [ -f "$DEFAULT_SETTINGS_MAKEFILE" ]; then
-  sed -i 's/+luci-compat//g' "$DEFAULT_SETTINGS_MAKEFILE"
-  echo "✅ 已移除 default-settings 对 luci-compat 的依赖"
-fi
+# 同步配置
+make defconfig
+echo "✅ defconfig 同步完成"
 
 echo "✅ diy-part2.sh 执行完成"
