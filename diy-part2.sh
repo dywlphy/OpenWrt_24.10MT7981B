@@ -55,12 +55,6 @@ echo "按需安装 feeds 包..."
 ./scripts/feeds install nspr
 ./scripts/feeds install libsane
 ./scripts/feeds install liblzo
-./scripts/feeds install cups
-./scripts/feeds install cups-filters
-./scripts/feeds install cups-bjnp
-./scripts/feeds install gutenprint
-./scripts/feeds install foomatic-db
-./scripts/feeds install foomatic-db-engine
 
 # ---------- 实用小功能 ----------
 ./scripts/feeds install luci-app-autoreboot
@@ -86,77 +80,116 @@ echo "按需安装 feeds 包..."
 
 echo "✅ feeds 包安装完成"
 
-# ---------- 3. 克隆打印包（增加重试） ----------
-echo "克隆打印包..."
+# ---------- 3. 克隆官方 CUPS 全功能打印包 ----------
+echo "克隆官方 CUPS 全功能打印包..."
 rm -rf package/printing-packages
-git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages || \
-git clone --depth=1 https://github.com/master-0123/openwrt-printing-packages package/printing-packages
-sed -i 's/+libmesa//g' package/printing-packages/cairo/Makefile 2>/dev/null
-echo "✅ 打印包克隆完成"
+
+# 从 OpenWrt 官方 packages feed 获取完整 CUPS 套件
+git clone --depth=1 --filter=blob:none --sparse https://github.com/openwrt/packages.git package/printing-packages-tmp
+cd package/printing-packages-tmp
+git sparse-checkout set \
+    net/cups \
+    net/cups-filters \
+    net/cups-bjnp \
+    net/avahi \
+    net/cups-ipp-usb \
+    utils/cups \
+    utils/gutenprint \
+    utils/foomatic-db \
+    utils/foomatic-db-engine \
+    utils/hplip \
+    utils/qpdf \
+    utils/poppler \
+    utils/poppler-data \
+    utils/ghostscript \
+    utils/ghostscript-fonts-std \
+    libs/libcups \
+    libs/libcupsfilters \
+    libs/libcupsimage \
+    libs/libexif \
+    libs/libjpeg-turbo \
+    libs/libpng \
+    libs/freetype \
+    libs/fontconfig \
+    libs/pixman \
+    libs/cairo \
+    libs/tiff \
+    libs/lcms2 \
+    libs/nspr \
+    libs/nss \
+    libs/libsane \
+    libs/libusb-1.0 \
+    libs/libieee1284 \
+    libs/libgphoto2 \
+    libs/liblqr \
+    libs/libunistring \
+    libs/lzo \
+    libs/libmd \
+    lang/python/python3 \
+    lang/python/python3-packages
+cd ../..
+# 整理目录结构
+mkdir -p package/printing-packages
+for dir in net utils libs lang; do
+  if [ -d "package/printing-packages-tmp/$dir" ]; then
+    cp -r package/printing-packages-tmp/$dir/* package/printing-packages/ 2>/dev/null
+  fi
+done
+rm -rf package/printing-packages-tmp
+
+echo "✅ 全功能 CUPS 打印包克隆完成"
 
 # ---------- 验证打印包是否存在 ----------
 echo "验证打印包..."
 echo "printing-packages 目录结构："
 find package/printing-packages -name "Makefile" | sort
 
-# 用 find 查找所有 Makefile，判断包含目标包的
-CUPS_COUNT=$(find package/printing-packages -name "Makefile" | wc -l)
-echo "找到 ${CUPS_COUNT} 个 Makefile"
+MISSING=""
+for pkg in cups cups-filters cups-bjnp gutenprint foomatic-db foomatic-db-engine; do
+    if find package/printing-packages -path "*/${pkg}/Makefile" | grep -q .; then
+        echo "✅ ${pkg} Makefile 存在"
+    else
+        echo "❌ 警告：${pkg} Makefile 不存在！"
+        MISSING="$MISSING $pkg"
+    fi
+done
 
-if find package/printing-packages -path "*/cups/Makefile" | grep -q .; then
-    echo "✅ cups Makefile 存在"
-else
-    echo "❌ 警告：cups Makefile 不存在！"
+if [ -n "$MISSING" ]; then
+    echo "❌ 致命错误：以下打印包缺失：$MISSING"
+    echo "请检查仓库结构"
+    exit 1
 fi
-
-if find package/printing-packages -path "*/cups-filters/Makefile" | grep -q .; then
-    echo "✅ cups-filters Makefile 存在"
-else
-    echo "❌ 警告：cups-filters Makefile 不存在！"
-fi
-
-if find package/printing-packages -path "*/cups-bjnp/Makefile" | grep -q .; then
-    echo "✅ cups-bjnp Makefile 存在"
-else
-    echo "❌ 警告：cups-bjnp Makefile 不存在！"
-fi
-
-if find package/printing-packages -path "*/gutenprint/Makefile" | grep -q .; then
-    echo "✅ gutenprint Makefile 存在"
-else
-    echo "❌ 警告：gutenprint Makefile 不存在！"
-fi
-
-if find package/printing-packages -path "*/foomatic-db/Makefile" | grep -q .; then
-    echo "✅ foomatic-db Makefile 存在"
-else
-    echo "❌ 警告：foomatic-db Makefile 不存在！"
-fi
-
-if find package/printing-packages -path "*/foomatic-db-engine/Makefile" | grep -q .; then
-    echo "✅ foomatic-db-engine Makefile 存在"
-else
-    echo "❌ 警告：foomatic-db-engine Makefile 不存在！"
-fi
+echo "✅ 所有打印包验证通过，继续编译..."
 
 # ---------- 强制启用 CUPS 相关包到 .config ----------
 echo "强制启用 CUPS 相关包..."
+
+# 清理旧配置
 sed -i '/CONFIG_PACKAGE_cups/d' .config
 sed -i '/CONFIG_PACKAGE_cups-filters/d' .config
 sed -i '/CONFIG_PACKAGE_cups-bjnp/d' .config
 sed -i '/CONFIG_PACKAGE_gutenprint/d' .config
 sed -i '/CONFIG_PACKAGE_foomatic-db/d' .config
 sed -i '/CONFIG_PACKAGE_foomatic-db-engine/d' .config
+sed -i '/CONFIG_PACKAGE_libusb-1.0/d' .config
+sed -i '/CONFIG_PACKAGE_avahi-daemon/d' .config
+sed -i '/CONFIG_PACKAGE_avahi-utils/d' .config
+sed -i '/CONFIG_PACKAGE_dbus/d' .config
+
+# 强制启用 CUPS 全功能套件
 echo "CONFIG_PACKAGE_cups=y" >> .config
 echo "CONFIG_PACKAGE_cups-filters=y" >> .config
 echo "CONFIG_PACKAGE_cups-bjnp=y" >> .config
 echo "CONFIG_PACKAGE_gutenprint=y" >> .config
 echo "CONFIG_PACKAGE_foomatic-db=y" >> .config
 echo "CONFIG_PACKAGE_foomatic-db-engine=y" >> .config
+
+# 基础依赖
 echo "CONFIG_PACKAGE_libusb-1.0=y" >> .config
 echo "CONFIG_PACKAGE_avahi-daemon=y" >> .config
 echo "CONFIG_PACKAGE_avahi-utils=y" >> .config
 echo "CONFIG_PACKAGE_dbus=y" >> .config
+
 echo "✅ CUPS 相关包强制启用完成"
 
 # ---------- 4. 兜底禁用循环依赖（先删后加，确保生效） ----------
