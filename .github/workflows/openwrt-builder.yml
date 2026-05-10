@@ -1,8 +1,8 @@
 # ============================================================
 # OpenWrt 官方 24.10 稳定版编译
-# 核心：CUPS + SSR-Plus + ksmbd + 中文界面.github/workflows/build-official.yml
+# 方案三：精确拉取，最小污染
+# 核心：CUPS + SSR-Plus + ksmbd + 中文界面
 # ============================================================
-
 name: Build Official OpenWrt
 
 on:
@@ -17,6 +17,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 360
+
     steps:
     - name: Checkout
       uses: actions/checkout@main
@@ -36,6 +37,7 @@ jobs:
     - name: Clone OpenWrt 24.10
       run: |
         git clone https://github.com/openwrt/openwrt -b openwrt-24.10 openwrt
+
     - name: Load custom feeds and config
       run: |
         [ -f config.txt ] && cp config.txt openwrt/.config
@@ -44,7 +46,7 @@ jobs:
         chmod +x openwrt/diy-part1.sh openwrt/diy-part2.sh 2>/dev/null || true
         cd openwrt
         ./diy-part1.sh
-    # ← 在这里插入缓存 ↓↓↓
+
     - name: Cache OpenWrt source packages (dl)
       uses: actions/cache@v4
       with:
@@ -60,7 +62,7 @@ jobs:
           openwrt/build_dir
         key: openwrt-build-${{ hashFiles('config.txt') }}
         restore-keys: openwrt-build-
-    # ← 缓存结束 ↑↑↑
+
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
 
@@ -74,10 +76,9 @@ jobs:
     - name: Install feeds - third party (precise)
       run: |
         cd openwrt
-        # 从 smpackage 精确安装（不装 -a，避免拉一堆垃圾）
+        # 从 smpackage 精确安装
         ./scripts/feeds install -p smpackage luci-app-cupsd
         ./scripts/feeds install -p smpackage luci-app-ssr-plus
-        ./scripts/feeds install -p smpackage xray-core
         ./scripts/feeds install -p smpackage vlmcsd
         ./scripts/feeds install -p smpackage luci-app-vlmcsd
         ./scripts/feeds install -p smpackage v2ray-geodata
@@ -89,15 +90,20 @@ jobs:
         ./scripts/feeds install -p cups cups-bjnp
         ./scripts/feeds install -p cups libcups
         ./scripts/feeds install -p cups libcupsimage
+        ./scripts/feeds install -p cups ghostscript
+        ./scripts/feeds install -p cups gutenprint
+        ./scripts/feeds install -p cups hplip-ppds
         
         # 从 brlaser 源精确安装
         ./scripts/feeds install -p brlaser brlaser
         
         echo "✅ 精确安装完成"
+
     - name: Run diy-part2.sh
       run: |
         cd openwrt
         ./diy-part2.sh
+
     - name: Remove conflicting packages
       run: |
         cd openwrt
@@ -108,12 +114,17 @@ jobs:
         rm -rf feeds/packages/net/onionshare-cli 2>/dev/null || true
         find . -name "onionshare-cli" -type d -exec rm -rf {} \; 2>/dev/null || true
         
+        # 删除 samba4（如果有的话，避免与 ksmbd 冲突）
+        rm -rf feeds/smpackage/samba4* 2>/dev/null || true
+        rm -rf feeds/*/net/samba4 2>/dev/null || true
+        find . -name "samba4" -type d -exec rm -rf {} \; 2>/dev/null || true
+        
         # 清理 index
         for idx in feeds/*.index; do
           [ -f "$idx" ] && sed -i '/onionshare-cli/d' "$idx" || true
         done
         
-        # dbus-libs 修复
+        # dbus-libs 修复（必须在所有 feeds 操作之后）
         DBUS_MK="feeds/packages/utils/dbus/Makefile"
         if [ -f "$DBUS_MK" ] && ! grep -q "Package/dbus-libs" "$DBUS_MK"; then
           sed -i '/^define Package\/dbus$/,/^endef$/{ /DEPENDS:/ s/$/ +dbus-libs/ }' "$DBUS_MK"
@@ -123,6 +134,7 @@ jobs:
         
         rm -rf tmp/
         echo "✅ 冲突包已清除"
+
     - name: Run make defconfig
       run: |
         cd openwrt
@@ -133,19 +145,21 @@ jobs:
         cd openwrt
         echo ""
         echo "╔══════════════════════════════════════╗"
-        echo "║  📄 feeds.conf 内容              ║"
+        echo "║  📄 feeds.conf 内容                  ║"
         echo "╚══════════════════════════════════════╝"
         cat feeds.conf 2>/dev/null || echo "feeds.conf 不存在"
         echo ""
+
     - name: Debug Print Chinese packages in config
       run: |
         cd openwrt
         echo ""
         echo "╔══════════════════════════════════════╗"
-        echo "║  📄 .config 中的中文包配置        ║"
+        echo "║  📄 .config 中的中文包配置           ║"
         echo "╚══════════════════════════════════════╝"
         grep -E "luci-i18n.*zh-cn" .config 2>/dev/null || echo "无中文包配置"
         echo ""
+
     - name: Force enable key packages
       run: |
         cd openwrt
@@ -161,6 +175,7 @@ jobs:
             echo "  追加启用: $pattern"
           fi
         }
+        
         echo "【强制启用 LuCI 核心依赖】"
         enable_pkg "luci-base"
         enable_pkg "luci-mod-admin-full"
@@ -199,6 +214,9 @@ jobs:
         enable_pkg "luci-i18n-ttyd-zh-cn"
         enable_pkg "luci-i18n-ssr-plus-zh-cn"
         enable_pkg "luci-i18n-cupsd-zh-cn"
+        
+        echo ""
+        echo "【强制启用打印机驱动】"
         enable_pkg "brlaser"
         enable_pkg "hplip-ppds"
         
@@ -206,25 +224,28 @@ jobs:
         echo "【强制启用基础依赖】"
         enable_pkg "zlib"
         enable_pkg "libcups"
+        enable_pkg "libcupsimage"
         enable_pkg "libpng"
         enable_pkg "libjpeg"
         enable_pkg "libstdcpp"
-        enable_pkg "libusb-1.0"
+        enable_pkg "libusb-1-0"
         enable_pkg "libexpat"
-        enable_pkg "dbus"                    # dbus 守护进程和库
-        enable_pkg "libdaemon"               # avahi 依赖
-        enable_pkg "kmod-usb-printer"
+        enable_pkg "dbus"
         enable_pkg "dbus-libs"
-
+        enable_pkg "libdaemon"
+        enable_pkg "libiwinfo"
+        enable_pkg "kmod-usb-printer"
+        
         echo ""
         echo "【强制启用核心功能包】"
         enable_pkg "cups"
-        enable_pkg "cups-filters"
+        enable_pkg "openprinting-cups-filters"
         enable_pkg "cups-bjnp"
-        enable_pkg "avahi"                   # 这个包提供 libavahi-common 和 libavahi-core
+        enable_pkg "avahi"
         enable_pkg "avahi-dbus-daemon"
         enable_pkg "luci-app-cupsd"
         enable_pkg "ksmbd-server"
+        enable_pkg "ksmbd-utils"
         enable_pkg "luci-app-ksmbd"
         enable_pkg "luci-app-ssr-plus"
         enable_pkg "luci-app-sqm"
@@ -236,37 +257,34 @@ jobs:
         enable_pkg "luci-app-vlmcsd"
         enable_pkg "curl"
         enable_pkg "libcurl"
-            
-        # 删除这4行
-        # enable_pkg "ghostscript"
-        # enable_pkg "gutenprint"
-        # enable_pkg "foomatic-db"
-        # enable_pkg "foomatic-db-engine"
-        enable_pkg "openprinting-cups-filters"
-        sed -i 's/^CONFIG_PACKAGE_xray-core=y/# CONFIG_PACKAGE_xray-core is not set/' .config
+        
+        # 禁用有问题的包（mosdns Go 版本不兼容）
         sed -i 's/^CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/' .config
         sed -i 's/^CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS is not set/' .config
+        
+        # GRUB timeout
         sed -i 's/CONFIG_GRUB_TIMEOUT=.*/CONFIG_GRUB_TIMEOUT=0/' .config
         echo "CONFIG_GRUB_TIMEOUT=0" >> .config
         echo "==========================="
-        # make defconfig
+
     - name: Debug Print all Chinese packages in config
       run: |
         cd openwrt
         echo ""
         echo "╔══════════════════════════════════════╗"
-        echo "║  📋 .config 中所有中文包          ║"
+        echo "║  📋 .config 中所有中文包              ║"
         echo "╚══════════════════════════════════════╝"
         echo ""
         grep "^CONFIG_PACKAGE_luci-i18n" .config | sed 's/^/  /' || echo "  (无中文包配置)"
         echo ""
+
     - name: Check Chinese packages in config
       run: |
         cd openwrt
         
         echo ""
         echo "╔══════════════════════════════════════╗"
-        echo "║  🔍 检查中文包是否写入 .config  ║"
+        echo "║  🔍 检查中文包是否写入 .config       ║"
         echo "╚══════════════════════════════════════╝"
         echo ""
         
@@ -292,24 +310,25 @@ jobs:
         
         if [ "$FAIL" -eq 1 ]; then
           echo "╔══════════════════════════════════════╗"
-          echo "║  ❌ 中文包未写入 .config        ║"
-          echo "║  编译将无法生成中文界面       ║"
-          echo "║  已终止编译                     ║"
+          echo "║  ❌ 中文包未写入 .config              ║"
+          echo "║  编译将无法生成中文界面               ║"
+          echo "║  已终止编译                           ║"
           echo "╚══════════════════════════════════════╝"
           exit 1
         else
           echo "╔══════════════════════════════════════╗"
-          echo "║  ✅ 中文包已写入 .config       ║"
-          echo "║  固件将包含中文界面           ║"
+          echo "║  ✅ 中文包已写入 .config              ║"
+          echo "║  固件将包含中文界面                   ║"
           echo "╚══════════════════════════════════════╝"
         fi
+
     - name: Verify package requirements
       run: |
         cd openwrt
         
         echo ""
         echo "╔══════════════════════════════════════╗"
-        echo "║  🔍 依赖链完整性检查            ║"
+        echo "║  🔍 依赖链完整性检查                 ║"
         echo "╚══════════════════════════════════════╝"
         echo ""
         
@@ -346,9 +365,9 @@ jobs:
         echo ""
         echo "【CUPS 打印】"
         check_config "cups"
-        check_config "cups-filters"
+        check_config "openprinting-cups-filters"
         check_config "luci-app-cupsd"
-        check_config "avahi-dbus-daemon" "optional"
+        check_config "avahi-dbus-daemon" "optional" "no"
         echo ""
         echo "【文件共享】"
         check_config "ksmbd-server"
@@ -363,21 +382,22 @@ jobs:
         
         if [ "$FAIL" -eq 1 ]; then
           echo "╔══════════════════════════════════════╗"
-          echo "║  ❌ 检查失败                      ║"
+          echo "║  ❌ 检查失败                         ║"
           echo "╚══════════════════════════════════════╝"
           exit 1
         else
           echo "╔══════════════════════════════════════╗"
-          echo "║  ✅ 检查通过                     ║"
-          echo "║  核心功能就绪: $TOTAL 包        ║"
+          echo "║  ✅ 检查通过                         ║"
+          echo "║  核心功能就绪: $TOTAL 包             ║"
           echo "╚══════════════════════════════════════╝"
         fi
-    # ← 添加这个步骤 ↓↓↓
+
     - name: Re-run defconfig to resolve dependencies
       run: |
         cd openwrt
         make defconfig
         echo "✅ defconfig 完成，依赖已解析"
+
     - name: Debug - Check missing lib dependencies
       run: |
         cd openwrt
@@ -387,8 +407,10 @@ jobs:
           grep "CONFIG_PACKAGE_${pkg}=y" .config || echo "  $pkg 未启用"
           grep "CONFIG_PACKAGE_lib${pkg}=y" .config || echo "  ⚠️ lib${pkg} 未启用"
         done
+
     - name: Download packages
       run: cd openwrt && make download -j8 || make download -j1 V=s
+
     - name: Compile OpenWRT firmware
       id: compile
       run: |
@@ -415,6 +437,7 @@ jobs:
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+
     - name: Organize files
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
@@ -423,30 +446,60 @@ jobs:
         rm -rf packages
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
+
     - name: Upload firmware to Artifacts
       uses: actions/upload-artifact@main
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: OpenWrt_Official_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
+
     - name: Generate release tag
       id: tag
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        touch release.txt
+        echo "## 🚀 OpenWrt 24.10 固件" >> release.txt
+        echo "" >> release.txt
+        echo "### 📦 包含功能" >> release.txt
+        echo "- ✅ LuCI 中文界面" >> release.txt
+        echo "- ✅ CUPS 打印系统 + AirPrint 支持" >> release.txt
+        echo "- ✅ ksmbd 文件共享" >> release.txt
+        echo "- ✅ SSR-Plus 代理" >> release.txt
+        echo "- ✅ 网络工具 (UPnP, DDNS, WoL, SQM)" >> release.txt
+        echo "" >> release.txt
+        echo "### 🖨️ 打印机驱动" >> release.txt
+        echo "- Brother (brlaser)" >> release.txt
+        echo "- HP (hplip-ppds)" >> release.txt
+        echo "" >> release.txt
+        echo "**编译时间**: $(date '+%Y-%m-%d %H:%M:%S')" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
+
     - name: Upload firmware to Release
-      uses: softprops/action-gh-release@master
+      uses: softprops/action-gh-release@v1
       if: steps.tag.outputs.status == 'success' && !cancelled()
-      with:
-        token: ${{ secrets.RELEASES_TOKEN }}
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        files: ${{ env.FIRMWARE }}/*
-    - name: Remove old Releases
-      uses: dev-drprasad/delete-older-releases@master
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-        keep_latest: 3
-        delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        name: "OpenWrt 24.10 - ${{ steps.tag.outputs.release_tag }}"
+        body_path: release.txt
+        draft: false
+        prerelease: false
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: Delete old releases
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      run: |
+        cd openwrt
+        echo "清理旧 Release（保留最近 5 个）..."
+        gh release list --repo ${{ github.repository }} --limit 20 | tail -n +6 | while read line; do
+          tag=$(echo "$line" | awk '{print $1}')
+          if [ -n "$tag" ]; then
+            echo "删除: $tag"
+            gh release delete "$tag" --repo ${{ github.repository }} --yes 2>/dev/null || true
+          fi
+        done
+      env:
+        GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
