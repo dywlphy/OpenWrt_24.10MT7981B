@@ -63,8 +63,37 @@ jobs:
     # ← 缓存结束 ↑↑↑
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
-    - name: Install feeds
-      run: cd openwrt && ./scripts/feeds install -a
+
+    - name: Install feeds - official only
+      run: |
+        cd openwrt
+        # 只从官方源安装所有包（不安装第三方源的包）
+        ./scripts/feeds install -a -p packages
+        ./scripts/feeds install -a -p luci
+
+    - name: Install feeds - third party (precise)
+      run: |
+        cd openwrt
+        # 从 smpackage 精确安装（不装 -a，避免拉一堆垃圾）
+        ./scripts/feeds install -p smpackage luci-app-cupsd
+        ./scripts/feeds install -p smpackage luci-app-ssr-plus
+        ./scripts/feeds install -p smpackage xray-core
+        ./scripts/feeds install -p smpackage vlmcsd
+        ./scripts/feeds install -p smpackage luci-app-vlmcsd
+        ./scripts/feeds install -p smpackage v2ray-geodata
+        ./scripts/feeds install -p smpackage v2ray-geosite
+        
+        # 从 cups 源精确安装
+        ./scripts/feeds install -p cups cups
+        ./scripts/feeds install -p cups cups-filters
+        ./scripts/feeds install -p cups cups-bjnp
+        ./scripts/feeds install -p cups libcups
+        ./scripts/feeds install -p cups libcupsimage
+        
+        # 从 brlaser 源精确安装
+        ./scripts/feeds install -p brlaser brlaser
+        
+        echo "✅ 精确安装完成"
     - name: Run diy-part2.sh
       run: |
         cd openwrt
@@ -72,23 +101,14 @@ jobs:
     - name: Remove conflicting packages
       run: |
         cd openwrt
-        # 原有的冲突包清理
-        rm -rf feeds/smpackage/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,vsftpd*,miniupnpd-iptables,wireless-regdb} 2>/dev/null || true
+        # 删除第三方源中与官方冲突的包
+        rm -rf feeds/smpackage/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,vsftpd*,miniupnpd-iptables,wireless-regdb,curl,dbus,openssl} 2>/dev/null || true
         
-        # 删除所有第三方 dbus 和 curl
-        rm -rf feeds/kenzo/curl feeds/kenzo/dbus 2>/dev/null || true
-        rm -rf feeds/small/dbus 2>/dev/null || true
-        rm -rf feeds/smpackage/dbus 2>/dev/null || true
-        
-        # 删除 onionshare-cli
+        # 删除不需要的大包
         rm -rf feeds/packages/net/onionshare-cli 2>/dev/null || true
         find . -name "onionshare-cli" -type d -exec rm -rf {} \; 2>/dev/null || true
         
-        # 重新安装官方 dbus
-        ./scripts/feeds uninstall dbus
-        ./scripts/feeds install -f -p packages dbus
-        
-        # 清理 index 中的 onionshare-cli
+        # 清理 index
         for idx in feeds/*.index; do
           [ -f "$idx" ] && sed -i '/onionshare-cli/d' "$idx" || true
         done
@@ -97,22 +117,7 @@ jobs:
         DBUS_MK="feeds/packages/utils/dbus/Makefile"
         if [ -f "$DBUS_MK" ] && ! grep -q "Package/dbus-libs" "$DBUS_MK"; then
           sed -i '/^define Package\/dbus$/,/^endef$/{ /DEPENDS:/ s/$/ +dbus-libs/ }' "$DBUS_MK"
-          cat >> "$DBUS_MK" << 'EOF'
-        
-        define Package/dbus-libs
-          SECTION:=libs
-          CATEGORY:=Libraries
-          DEPENDS:=+libexpat
-          TITLE:=D-Bus library
-        endef
-        
-        define Package/dbus-libs/install
-        	$(INSTALL_DIR) $(1)/usr/lib
-        	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libdbus-1.so* $(1)/usr/lib/
-        endef
-        
-        $(eval $(call BuildPackage,dbus-libs))
-        EOF
+          printf '\ndefine Package/dbus-libs\n  SECTION:=libs\n  CATEGORY:=Libraries\n  DEPENDS:=+libexpat\n  TITLE:=D-Bus library\nendef\n\ndefine Package/dbus-libs/install\n\t$(INSTALL_DIR) $(1)/usr/lib\n\t$(CP) $(PKG_INSTALL_DIR)/usr/lib/libdbus-1.so* $(1)/usr/lib/\nendef\n\n$(eval $(call BuildPackage,dbus-libs))\n' >> "$DBUS_MK"
           echo "  ✅ dbus-libs 修复已应用"
         fi
         
