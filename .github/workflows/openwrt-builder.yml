@@ -131,6 +131,8 @@ jobs:
           printf '\ndefine Package/dbus-libs\n  SECTION:=libs\n  CATEGORY:=Libraries\n  DEPENDS:=+libexpat\n  TITLE:=D-Bus library\nendef\n\ndefine Package/dbus-libs/install\n\t$(INSTALL_DIR) $(1)/usr/lib\n\t$(CP) $(PKG_INSTALL_DIR)/usr/lib/libdbus-1.so* $(1)/usr/lib/\nendef\n\n$(eval $(call BuildPackage,dbus-libs))\n' >> "$DBUS_MK"
           echo "  ✅ dbus-libs 修复已应用"
         fi
+        # 删除有问题的 webd（以后需要可删除这行）
+        rm -rf feeds/smpackage/webd 2>/dev/null || true
         
         rm -rf tmp/
         echo "✅ 冲突包已清除"
