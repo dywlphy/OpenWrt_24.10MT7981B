@@ -41,19 +41,7 @@ if [ -n "$CUPS_MK" ] && [ -f "$CUPS_MK" ]; then
     echo "  ✅ cups Makefile 已修复: $CUPS_MK"
 fi
 
-# 修复 cups-bjnp Makefile（从 cups 源，不是 immortalwrt）
-CUPSBJNP_MK=$(find feeds/cups -path "*/cups-bjnp/Makefile" 2>/dev/null | head -1)
-if [ -n "$CUPSBJNP_MK" ] && [ -f "$CUPSBJNP_MK" ]; then
-    # 修复 backend 目录路径 - 使用绝对路径
-    sed -i 's|--with-cupsbackenddir=.*|--with-cupsbackenddir=/usr/lib/cups/backend|' "$CUPSBJNP_MK"
-    # 添加编译顺序依赖，确保 cups 先编译
-    sed -i 's/^DEPENDS:=.*/DEPENDS:=+cups +libcupsimage/' "$CUPSBJNP_MK"
-    # 添加 CFLAGS 指向 cups 头文件
-    sed -i '/^CONFIGURE_ARGS/i \\TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include/cups' "$CUPSBJNP_MK"
-    echo "  ✅ cups-bjnp Makefile 已修复: $CUPSBJNP_MK"
-else
-    echo "  ⚠️ 未找到 cups-bjnp Makefile，跳过修复"
-fi
+
 
 # ==========================================
 # 3. 创建目录和文件
