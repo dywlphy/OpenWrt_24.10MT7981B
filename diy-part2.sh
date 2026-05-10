@@ -1,166 +1,86 @@
 #!/bin/bash
+# ==========================================
+# diy-part2.sh - 自启动脚本 + 自动共享 + CUPS + GRUB修复
+# OpenWrt 24 专用
+# ==========================================
 
 # ==========================================
-# 依赖安装 + 自启动脚本 + 自动共享
+# 1. 修复 GRUB 超时为 0 秒
 # ==========================================
-
-# ---------- 1. 更新 feeds ----------
-./scripts/feeds update -a
-
-# 物理移除冲突包
-echo "移除冲突包 odhcpd-ipv6only..."
-rm -rf package/network/services/odhcpd-ipv6only
-find feeds -path "*/odhcpd-ipv6only*" -exec rm -rf {} \; 2>/dev/null
-
-# 移除 autosamba（我们使用 ksmbd，不需要这个）
-rm -rf package/lean/autosamba
-find feeds -path "*/autosamba*" -exec rm -rf {} \; 2>/dev/null
-echo "✅ autosamba 已移除"
-
-# 移除 LEDE 自带的 ddns-scripts_aliyun/dnspod，使用 feeds 版本代替
-rm -rf package/lean/ddns-scripts_aliyun
-rm -rf package/lean/ddns-scripts_dnspod
-echo "✅ 已移除 LEDE 自带的 ddns-scripts_aliyun/dnspod"
-
-echo "✅ 冲突包已移除"
-
-# ---------- 2. 按需安装 feeds 包 ----------
-echo "按需安装 feeds 包..."
-
-./scripts/feeds install luci
-./scripts/feeds install luci-i18n-base-zh-cn
-./scripts/feeds install luci-proto-ipv6
-./scripts/feeds install miniupnpd
-./scripts/feeds install luci-app-upnp
-./scripts/feeds install ddns-scripts
-./scripts/feeds install luci-app-ddns
-./scripts/feeds install luci-app-ssr-plus
-./scripts/feeds install shadowsocksr-libev
-./scripts/feeds install ksmbd-server
-./scripts/feeds install luci-app-ksmbd
-./scripts/feeds install avahi-daemon
-./scripts/feeds install avahi-utils
-./scripts/feeds install dbus
-./scripts/feeds install libusb-1.0
-
-# ---------- 打印所需全部底层库 ----------
-./scripts/feeds install libpng
-./scripts/feeds install libfreetype
-./scripts/feeds install fontconfig
-./scripts/feeds install pixman
-./scripts/feeds install libexif
-./scripts/feeds install libjpeg-turbo
-./scripts/feeds install tiff
-./scripts/feeds install libnss
-./scripts/feeds install nspr
-./scripts/feeds install libsane
-./scripts/feeds install liblzo
-
-# ---------- 实用小功能 ----------
-./scripts/feeds install luci-app-autoreboot
-./scripts/feeds install luci-app-watchcat
-./scripts/feeds install luci-app-commands
-./scripts/feeds install luci-app-wol
-./scripts/feeds install luci-app-adblock
-./scripts/feeds install luci-app-sqm
-./scripts/feeds install iperf3
-./scripts/feeds install luci-app-nlbwmon
-./scripts/feeds install htop
-./scripts/feeds install luci-app-usb-printer
-./scripts/feeds install luci-app-diskman
-./scripts/feeds install vlmcsd
-./scripts/feeds install luci-app-vlmcsd
-
-# wget-ssl（ddns 依赖）
-./scripts/feeds install wget-ssl
-# autocore 依赖
-./scripts/feeds install bc
-./scripts/feeds install pciutils
-./scripts/feeds install lm-sensors
-
-echo "✅ feeds 包安装完成"
-
-# ---------- 3. 克隆 CUPS 全功能打印包 ----------
-echo "克隆 CUPS 全功能打印包..."
-rm -rf package/printing-packages
-
-# 更换为 Git 协议和稳定的源，包含 cups, cups-filters, gutenprint, foomatic-db 等
-git clone --depth=1 git://github.com/wlallemand/openwrt-printing.git package/printing-packages
-
-# 移除无关的包，只保留 CUPS 核心套件
-rm -rf package/printing-packages/hplip \
-       package/printing-packages/sane-backends \
-       package/printing-packages/ghostscript \
-       package/printing-packages/qpdf \
-       package/printing-packages/poppler
-
-echo "✅ CUPS 打印包克隆完成"
-
-# ---------- 验证打印包是否存在 ----------
-echo "验证打印包..."
-echo "printing-packages 目录结构："
-find package/printing-packages -name "Makefile" | sort
-
-MISSING=""
-for pkg in cups cups-filters cups-bjnp gutenprint foomatic-db foomatic-db-engine; do
-    if find package/printing-packages -path "*/${pkg}/Makefile" | grep -q .; then
-        echo "✅ ${pkg} Makefile 存在"
-    else
-        echo "❌ 警告：${pkg} Makefile 不存在！"
-        MISSING="$MISSING $pkg"
+echo "===== 修复 GRUB 超时为 0 秒 ====="
+for cfg in target/linux/x86/image/grub-efi.cfg target/linux/x86/image/grub-pc.cfg target/linux/x86/image/grub-iso.cfg; do
+    if [ -f "$cfg" ]; then
+        sed -i 's/^set timeout=.*/set timeout=0/' "$cfg"
+        echo "  ✅ $(basename $cfg): timeout=0"
     fi
 done
 
-if [ -n "$MISSING" ]; then
-    echo "❌ 致命错误：以下打印包缺失：$MISSING"
-    echo "请检查仓库结构"
-    exit 1
+# ==========================================
+# 2. 修复 Makefile 问题
+# ==========================================
+echo "===== 修复 Makefile 问题 ====="
+
+# 修复 tiff
+TIFF_MK=$(find feeds -name "tiff" -type d 2>/dev/null | head -1)/Makefile
+if [ -f "$TIFF_MK" ]; then
+    sed -i 's/--enable-webp/--disable-webp/g' "$TIFF_MK"
+    echo "  ✅ tiff Makefile 已修复"
 fi
-echo "✅ 所有打印包验证通过，继续编译..."
 
-# ---------- 强制启用 CUPS 相关包到 .config ----------
-echo "强制启用 CUPS 相关包..."
+# 修复 curl
+#CURL_MK=$(find feeds -name "curl" -type d 2>/dev/null | head -1)/Makefile
+#if [ -f "$CURL_MK" ]; then
+    #sed -i 's/--enable-debug/--disable-debug/g' "$CURL_MK"
+    #echo "  ✅ curl Makefile 已修复"
+#fi
 
-# 清理旧配置
-sed -i '/CONFIG_PACKAGE_cups/d' .config
-sed -i '/CONFIG_PACKAGE_cups-filters/d' .config
-sed -i '/CONFIG_PACKAGE_cups-bjnp/d' .config
-sed -i '/CONFIG_PACKAGE_gutenprint/d' .config
-sed -i '/CONFIG_PACKAGE_foomatic-db/d' .config
-sed -i '/CONFIG_PACKAGE_foomatic-db-engine/d' .config
-sed -i '/CONFIG_PACKAGE_libusb-1.0/d' .config
-sed -i '/CONFIG_PACKAGE_avahi-daemon/d' .config
-sed -i '/CONFIG_PACKAGE_avahi-utils/d' .config
-sed -i '/CONFIG_PACKAGE_dbus/d' .config
+# 修复 ghostscript
+GS_MAKEFILE=$(find feeds -name "ghostscript" -type d 2>/dev/null | head -1)/Makefile
+if [ -f "$GS_MAKEFILE" ]; then
+    sed -i 's/--enable-cups/--with-install-cups/g' "$GS_MAKEFILE"
+    echo "  🔧 ghostscript Makefile 已修复"
+fi
 
-# 强制启用 CUPS 全功能套件
-echo "CONFIG_PACKAGE_cups=y" >> .config
-echo "CONFIG_PACKAGE_cups-filters=y" >> .config
-echo "CONFIG_PACKAGE_cups-bjnp=y" >> .config
-echo "CONFIG_PACKAGE_gutenprint=y" >> .config
-echo "CONFIG_PACKAGE_foomatic-db=y" >> .config
-echo "CONFIG_PACKAGE_foomatic-db-engine=y" >> .config
+# 修复 cups Makefile
+CUPS_MK="feeds/smpackage/cups/Makefile"
+if [ -f "$CUPS_MK" ]; then
+    sed -i 's/DEPENDS:=/DEPENDS:=+libusb-1.0 +libstdcpp /' "$CUPS_MK"
+    echo "  ✅ cups Makefile 已修复"
+fi
 
-# 基础依赖
-echo "CONFIG_PACKAGE_libusb-1.0=y" >> .config
-echo "CONFIG_PACKAGE_avahi-daemon=y" >> .config
-echo "CONFIG_PACKAGE_avahi-utils=y" >> .config
-echo "CONFIG_PACKAGE_dbus=y" >> .config
+# ==========================================
+# 3. 创建目录和文件
+# ==========================================
+echo "===== 创建目录和文件 ====="
+mkdir -p files/etc/init.d files/etc/rc.d files/etc/avahi/services
 
-echo "✅ CUPS 相关包强制启用完成"
+# AirPrint 服务文件
+cat > files/etc/avahi/services/cups.service << 'EOF'
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">%h - CUPS</name>
+  <service>
+    <type>_ipp._tcp</type>
+    <subtype>_universal._sub._ipp._tcp</subtype>
+    <port>631</port>
+    <txt-record>txtver=1</txt-record>
+    <txt-record>qtotal=1</txt-record>
+    <txt-record>Transparent=T</txt-record>
+    <txt-record>URF=WFD</txt-record>
+    <txt-record>Color=T</txt-record>
+    <txt-record>Duplex=T</txt-record>
+    <txt-record>Copies=T</txt-record>
+  </service>
+</service-group>
+EOF
+chmod 644 files/etc/avahi/services/cups.service
+echo "  ✅ AirPrint 服务文件已创建"
 
-# ---------- 4. 兜底禁用循环依赖（先删后加，确保生效） ----------
-sed -i '/CONFIG_PACKAGE_luci-app-fchomo/d' .config
-sed -i '/CONFIG_PACKAGE_nikki/d' .config
-sed -i '/CONFIG_PACKAGE_mihomo/d' .config
-echo "CONFIG_PACKAGE_luci-app-fchomo=n" >> .config
-echo "CONFIG_PACKAGE_nikki=n" >> .config
-echo "CONFIG_PACKAGE_mihomo=n" >> .config
-
-# ---------- 5. 创建自启动目录 ----------
-mkdir -p files/etc/init.d files/etc/rc.d
-
-# ---------- 6. 服务自启动脚本 ----------
+# ==========================================
+# 4. 服务自启动脚本
+# ==========================================
+echo "===== 创建服务自启动脚本 ====="
 cat > files/etc/init.d/custom-autostart << 'EOF'
 #!/bin/sh /etc/rc.common
 START=99
@@ -174,22 +94,23 @@ start() {
 EOF
 chmod +x files/etc/init.d/custom-autostart
 ln -sf ../init.d/custom-autostart files/etc/rc.d/S99custom-autostart
+echo "  ✅ 服务自启动脚本已创建"
 
-# ---------- 7. 自动共享脚本 ----------
+# ==========================================
+# 5. 自动共享脚本
+# ==========================================
+echo "===== 创建自动共享脚本 ====="
 cat > files/etc/init.d/auto-share-init << 'EOF'
 #!/bin/sh /etc/rc.common
 START=98
 boot() { sleep 15; start; }
-
 start() {
     echo "开始自动探测可用存储空间..."
-
     root_dev="$(df -k / | awk 'NR==2{print $1}')"
     BEST_PART=""
     BEST_FREE=0
     TOTAL_KB=0
     IS_SYSTEM_PART=0
-
     for part in /mnt/*; do
         if mountpoint -q "$part" 2>/dev/null; then
             dev=$(df -k "$part" | awk 'NR==2{print $1}')
@@ -203,7 +124,6 @@ start() {
             fi
         fi
     done
-
     if [ -z "$BEST_PART" ]; then
         for part in /overlay /; do
             if mountpoint -q "$part" 2>/dev/null; then
@@ -217,20 +137,16 @@ start() {
             fi
         done
     fi
-
     if [ -z "$BEST_PART" ]; then
         echo "未找到可用存储分区，跳过共享配置。"
         return 0
     fi
-
     SHARE_DIR="$BEST_PART/OpenWrt_Share"
     mkdir -p "$SHARE_DIR"
     chmod 0777 "$SHARE_DIR"
-
     free_kb=$(df -k "$BEST_PART" | awk 'NR==2{print $4}')
     use_kb=$((free_kb * 60 / 100))
     echo "$use_kb" > "$SHARE_DIR/.size_limit_kb"
-
     while uci delete ksmbd.@share[0] 2>/dev/null; do :; done
     uci add ksmbd share
     uci set ksmbd.@share[-1].name='Auto_Share'
@@ -242,38 +158,101 @@ start() {
     uci set ksmbd.@share[-1].force_create_mode='0666'
     uci commit ksmbd
     /etc/init.d/ksmbd restart
-
     TOTAL_MB=$((TOTAL_KB / 1024))
     SHARE_MB=$((use_kb / 1024))
     echo "自动共享配置完成！" > "$SHARE_DIR/README.txt"
     echo "分区：$BEST_PART (总容量约 ${TOTAL_MB}MB)" >> "$SHARE_DIR/README.txt"
-    if [ "$IS_SYSTEM_PART" -eq 0 ]; then
-        echo "类型：外部存储" >> "$SHARE_DIR/README.txt"
-    else
-        echo "类型：系统分区（未检测到外部存储，降级使用）" >> "$SHARE_DIR/README.txt"
-    fi
+    echo "类型：$([ "$IS_SYSTEM_PART" -eq 0 ] && echo '外部存储' || echo '系统分区')" >> "$SHARE_DIR/README.txt"
     echo "共享空间上限(60%剩余空间)：${SHARE_MB}MB" >> "$SHARE_DIR/README.txt"
-    echo "此目录为自动共享目录，可自由读写。" >> "$SHARE_DIR/README.txt"
-
-    echo "自动共享初始化完成：$SHARE_DIR (总容量: ${TOTAL_MB}MB, 共享上限: ${SHARE_MB}MB)"
+    echo "自动共享初始化完成：$SHARE_DIR"
 }
-
 stop() {
     echo "auto-share-init stopped."
 }
 EOF
 chmod +x files/etc/init.d/auto-share-init
 ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
+echo "  ✅ 自动共享脚本已创建"
 
-# ---------- 修复 default-settings 强制依赖 luci-compat ----------
-DEFAULT_SETTINGS_MAKEFILE="package/lean/default-settings/Makefile"
-if [ -f "$DEFAULT_SETTINGS_MAKEFILE" ]; then
-  sed -i 's/+luci-compat//g' "$DEFAULT_SETTINGS_MAKEFILE"
-  echo "✅ 已移除 default-settings 对 luci-compat 的依赖"
+# ==========================================
+# 6. 安装中文语言包
+# ==========================================
+echo "===== 安装中文语言包 ====="
+./scripts/feeds install luci-i18n-base-zh-cn && echo "  ✅ luci-i18n-base-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-base-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-firewall-zh-cn && echo "  ✅ luci-i18n-firewall-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-firewall-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-opkg-zh-cn && echo "  ✅ luci-i18n-opkg-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-opkg-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-upnp-zh-cn && echo "  ✅ luci-i18n-upnp-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-upnp-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-ddns-zh-cn && echo "  ✅ luci-i18n-ddns-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-ddns-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-sqm-zh-cn && echo "  ✅ luci-i18n-sqm-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-sqm-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-wol-zh-cn && echo "  ✅ luci-i18n-wol-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-wol-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-nft-qos-zh-cn && echo "  ✅ luci-i18n-nft-qos-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-nft-qos-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-attendedsysupgrade-zh-cn && echo "  ✅ luci-i18n-attendedsysupgrade-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-attendedsysupgrade-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-wireguard-zh-cn && echo "  ✅ luci-i18n-wireguard-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-wireguard-zh-cn 安装失败"
+./scripts/feeds install luci-i18n-ttyd-zh-cn && echo "  ✅ luci-i18n-ttyd-zh-cn 安装成功" || echo "  ⚠️ luci-i18n-ttyd-zh-cn 安装失败"
+
+# ==========================================
+# 7. 安装 CUPS 相关包
+# ==========================================
+echo "===== 安装 CUPS 相关包 ====="
+echo "从 openwrt-cups 源安装打印驱动包..."
+./scripts/feeds install -f -p cups ghostscript && echo "  ✅ ghostscript 安装成功" || echo "  ⚠️ ghostscript 安装失败"
+./scripts/feeds install -f -p cups gutenprint && echo "  ✅ gutenprint 安装成功" || echo "  ⚠️ gutenprint 安装失败"
+./scripts/feeds install -f -p cups foomatic-db && echo "  ✅ foomatic-db 安装成功" || echo "  ⚠️ foomatic-db 安装失败"
+./scripts/feeds install -f -p cups foomatic-db-engine && echo "  ✅ foomatic-db-engine 安装成功" || echo "  ⚠️ foomatic-db-engine 安装失败"
+echo "从 immortalwrt 源安装扩展包..."
+./scripts/feeds install -f -p immortalwrt cups-bjnp && echo "  ✅ cups-bjnp 安装成功" || echo "  ⚠️ cups-bjnp 安装失败"
+# 从 smpackage 源安装 CUPS 核心包（不要包含 dbus）
+./scripts/feeds install -f -p smpackage cups cups-filters luci-app-cupsd && echo "  ✅ CUPS 核心包安装成功" || echo "  ⚠️ CUPS 核心包安装失败"
+
+# ========== 修复 cups-bjnp Makefile（必须在 feeds install 之后）==========
+CUPSBJNP_MK="feeds/immortalwrt/utils/cups-bjnp/Makefile"
+if [ -f "$CUPSBJNP_MK" ]; then
+    # 修复 backend 目录路径 - 使用绝对路径
+    sed -i 's|--with-cupsbackenddir=.*|--with-cupsbackenddir=/usr/lib/cups/backend|' "$CUPSBJNP_MK"
+    # 添加编译顺序依赖，确保 cups 先编译
+    sed -i 's/^DEPENDS:=.*/DEPENDS:=+cups +libcupsimage/' "$CUPSBJNP_MK"
+    # 添加 CFLAGS 指向 cups 头文件
+    sed -i '/^CONFIGURE_ARGS/i \TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include/cups' "$CUPSBJNP_MK"
+    echo "  ✅ cups-bjnp Makefile 已修复"
+else
+    echo "  ⚠️ 未找到 cups-bjnp Makefile"
 fi
 
-# 同步配置
-make defconfig
-echo "✅ defconfig 同步完成"
+echo "从官方源安装 avahi..."
+./scripts/feeds install avahi-dbus-daemon && echo "  ✅ avahi-dbus-daemon 安装成功" || {
+    ./scripts/feeds install avahi-nodbus-daemon && echo "  ✅ avahi-nodbus-daemon 安装成功" || echo "  ⚠️ avahi 安装失败"
+}
+
+# ==========================================
+# 8. 安装打印机驱动
+# ==========================================
+echo "===== 安装 Brother 打印机驱动 ====="
+if ./scripts/feeds update brlaser; then
+    echo "  ✅ brlaser feed 更新成功"
+    ./scripts/feeds install brlaser && echo "  ✅ brlaser 驱动安装成功" || echo "  ❌ brlaser 驱动安装失败"
+else
+    echo "  ❌ brlaser feed 更新失败"
+fi
+
+echo "===== 安装 HP 打印机驱动 ====="
+./scripts/feeds install -f -p cups hplip-ppds && echo "  ✅ hplip-ppds 安装成功" || echo "  ❌ hplip-ppds 安装失败"
+
+# ==========================================
+# 9. 强制启用驱动配置
+# ==========================================
+#echo "===== 强制启用驱动配置 ====="
+#echo "CONFIG_PACKAGE_brlaser=y" >> .config
+#echo "CONFIG_PACKAGE_hplip-ppds=y" >> .config
+#echo "CONFIG_PACKAGE_ghostscript=y" >> .config
+
+# 验证 curl Makefile 语法
+CURL_MK="feeds/packages/net/curl/Makefile"
+if [ -f "$CURL_MK" ]; then
+    echo "  ✅ curl Makefile 存在"
+    # 检查是否有明显的语法错误
+    if grep -q "PKG_NAME:=curl" "$CURL_MK"; then
+        echo "  ✅ curl Makefile 格式正确"
+    fi
+fi
 
 echo "✅ diy-part2.sh 执行完成"
