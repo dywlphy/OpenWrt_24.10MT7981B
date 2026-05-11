@@ -118,6 +118,8 @@ jobs:
         ./scripts/feeds install -p packages luci-app-nlbwmon
         ./scripts/feeds install -p packages luci-app-commands
         ./scripts/feeds install -p packages luci-app-watchcat
+        ./scripts/feeds install -p packages lcms2
+        ./scripts/feeds install -p packages lcms2-utils
         echo "===== 修复 libcupsfilters 依赖 ====="
         if [ -f "feeds/printing/libcupsfilters/Makefile" ]; then
           echo "修复 libcupsfilters Makefile 依赖..."
