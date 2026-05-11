@@ -104,8 +104,8 @@ jobs:
         ./scripts/feeds install -p printing gutenprint
         ./scripts/feeds install -p printing cups-bjnp
 
-        # ===== hplip-feed 源（woniuzfb）=====
-        ./scripts/feeds install -p hplip-feed hplip
+        # ===== hplipfeed 源（woniuzfb）=====
+        ./scripts/feeds install -p hplipfeed hplip
 
         # ===== brlaser 源 =====
         ./scripts/feeds install -p brlaser brlaser
