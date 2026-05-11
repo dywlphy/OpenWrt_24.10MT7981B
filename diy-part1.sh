@@ -9,6 +9,6 @@ echo "src-git smpackage https://github.com/dywlphy/small-package" >> feeds.conf
 echo "src-git immortalwrt https://github.com/immortalwrt/packages" >> feeds.conf
 # 打印源
 echo "src-git printing https://github.com/tobiaswaldvogel/openwrt-feed-printing" >> feeds.conf
-echo "src-git hplip-feed https://github.com/woniuzfb/openwrt-24-printing-packages" >> feeds.conf
+echo "src-git hplipfeed https://github.com/woniuzfb/openwrt-24-printing-packages" >> feeds.conf
 echo "src-git brlaser https://github.com/pdewacht/brlaser.git" >> feeds.conf
 echo "✅ feeds.conf 配置完成（7个源）"
