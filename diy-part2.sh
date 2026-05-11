@@ -34,14 +34,12 @@ if [ -n "$GS_MK" ] && [ -f "$GS_MK" ]; then
     echo "  ✅ ghostscript Makefile 已修复: $GS_MK"
 fi
 
-# 修复 cups Makefile（从 cups 源）
-CUPS_MK=$(find feeds/cups -name "Makefile" -path "*/cups/Makefile" 2>/dev/null | head -1)
+# 修复 cups Makefile（从 smpackage 源）
+CUPS_MK=$(find feeds/smpackage -path "*/cups/Makefile" 2>/dev/null | head -1)
 if [ -n "$CUPS_MK" ] && [ -f "$CUPS_MK" ]; then
     sed -i 's/DEPENDS:=/DEPENDS:=+libusb-1.0 +libstdcpp /' "$CUPS_MK"
     echo "  ✅ cups Makefile 已修复: $CUPS_MK"
 fi
-
-
 
 # ==========================================
 # 3. 创建目录和文件
@@ -85,6 +83,8 @@ start() {
     [ -x /etc/init.d/ksmbd ] && /etc/init.d/ksmbd enable && /etc/init.d/ksmbd start
     [ -x /etc/init.d/miniupnpd ] && /etc/init.d/miniupnpd enable && /etc/init.d/miniupnpd start
     [ -x /etc/init.d/ddns ] && /etc/init.d/ddns enable && /etc/init.d/ddns start
+    [ -x /etc/init.d/adblock ] && /etc/init.d/adblock enable && /etc/init.d/adblock start
+    [ -x /etc/init.d/nlbwmon ] && /etc/init.d/nlbwmon enable && /etc/init.d/nlbwmon start
 }
 EOF
 chmod +x files/etc/init.d/custom-autostart
@@ -170,7 +170,7 @@ ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
 echo "  ✅ 自动共享脚本已创建"
 
 # ==========================================
-# 6. 安装中文语言包（精确安装，不污染）
+# 6. 安装中文语言包（精确安装）
 # ==========================================
 echo "===== 安装中文语言包 ====="
 ./scripts/feeds install luci-i18n-base-zh-cn && echo "  ✅ luci-i18n-base-zh-cn" || echo "  ⚠️ luci-i18n-base-zh-cn 失败"
@@ -186,16 +186,21 @@ echo "===== 安装中文语言包 ====="
 ./scripts/feeds install luci-i18n-ttyd-zh-cn && echo "  ✅ luci-i18n-ttyd-zh-cn" || echo "  ⚠️ luci-i18n-ttyd-zh-cn 失败"
 ./scripts/feeds install luci-i18n-ssr-plus-zh-cn && echo "  ✅ luci-i18n-ssr-plus-zh-cn" || echo "  ⚠️ luci-i18n-ssr-plus-zh-cn 失败"
 ./scripts/feeds install luci-i18n-cupsd-zh-cn && echo "  ✅ luci-i18n-cupsd-zh-cn" || echo "  ⚠️ luci-i18n-cupsd-zh-cn 失败"
+./scripts/feeds install luci-i18n-adblock-zh-cn && echo "  ✅ luci-i18n-adblock-zh-cn" || echo "  ⚠️ luci-i18n-adblock-zh-cn 失败"
+./scripts/feeds install luci-i18n-nlbwmon-zh-cn && echo "  ✅ luci-i18n-nlbwmon-zh-cn" || echo "  ⚠️ luci-i18n-nlbwmon-zh-cn 失败"
+./scripts/feeds install luci-i18n-commands-zh-cn && echo "  ✅ luci-i18n-commands-zh-cn" || echo "  ⚠️ luci-i18n-commands-zh-cn 失败"
+./scripts/feeds install luci-i18n-watchcat-zh-cn && echo "  ✅ luci-i18n-watchcat-zh-cn" || echo "  ⚠️ luci-i18n-watchcat-zh-cn 失败"
+./scripts/feeds install luci-i18n-autoreboot-zh-cn 2>/dev/null && echo "  ✅ luci-i18n-autoreboot-zh-cn" || echo "  ⚠️ luci-i18n-autoreboot-zh-cn 失败"
 
 # ==========================================
 # 7. 安装打印机驱动（从对应源精确安装）
 # ==========================================
 echo "===== 安装打印机驱动 ====="
 
-# 从 cups 源安装打印相关包
-./scripts/feeds install -p cups ghostscript && echo "  ✅ ghostscript" || echo "  ⚠️ ghostscript 失败"
-./scripts/feeds install -p cups gutenprint && echo "  ✅ gutenprint" || echo "  ⚠️ gutenprint 失败"
-./scripts/feeds install -p cups hplip-ppds && echo "  ✅ hplip-ppds" || echo "  ⚠️ hplip-ppds 失败"
+# 从 immortalwrt 源安装打印相关包
+./scripts/feeds install -p immortalwrt ghostscript && echo "  ✅ ghostscript" || echo "  ⚠️ ghostscript 失败"
+./scripts/feeds install -p immortalwrt hplip-ppds && echo "  ✅ hplip-ppds" || echo "  ⚠️ hplip-ppds 失败"
+./scripts/feeds install -p immortalwrt gutenprint && echo "  ✅ gutenprint" || echo "  ⚠️ gutenprint 失败"
 
 # 从 brlaser 源安装 Brother 驱动
 if ./scripts/feeds update brlaser 2>/dev/null; then
