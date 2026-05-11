@@ -69,7 +69,6 @@ jobs:
     - name: Install feeds - official only
       run: |
         cd openwrt
-        # 只从官方源安装所有包（不安装第三方源的包）
         ./scripts/feeds install -a -p packages
         ./scripts/feeds install -a -p luci
 
@@ -84,17 +83,16 @@ jobs:
         ./scripts/feeds install -p smpackage v2ray-geodata
         ./scripts/feeds install -p smpackage v2ray-geosite
         
-        # 从 cups 源精确安装
-        ./scripts/feeds install -p cups cups
-        ./scripts/feeds install -p cups cups-filters
-        ./scripts/feeds install -p cups cups-bjnp
-        ./scripts/feeds install -p cups libcups
-        ./scripts/feeds install -p cups libcupsimage
-        ./scripts/feeds install -p cups ghostscript
-        ./scripts/feeds install -p cups gutenprint
-        ./scripts/feeds install -p cups hplip-ppds
-
+        # CUPS 核心从 smpackage 安装
+        ./scripts/feeds install -p smpackage cups
+        ./scripts/feeds install -p smpackage cups-filters
+        
+        # 从 immortalwrt 精确安装
         ./scripts/feeds install -p immortalwrt cups-bjnp
+        ./scripts/feeds install -p immortalwrt ghostscript
+        ./scripts/feeds install -p immortalwrt hplip-ppds
+        ./scripts/feeds install -p immortalwrt gutenprint
+        ./scripts/feeds install -p immortalwrt luci-app-autoreboot
         
         # 从 brlaser 源精确安装
         ./scripts/feeds install -p brlaser brlaser
@@ -109,14 +107,18 @@ jobs:
     - name: Remove conflicting packages
       run: |
         cd openwrt
-        # 删除第三方源中与官方冲突的包
+        # 删除 smpackage 中与官方冲突的包
         rm -rf feeds/smpackage/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,vsftpd*,miniupnpd-iptables,wireless-regdb,curl,dbus,openssl} 2>/dev/null || true
+        
+        # 删除 immortalwrt 中与官方/smpackage 冲突的包
+        rm -rf feeds/immortalwrt/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,curl,dbus,openssl,cups,cups-filters,libcups,libcupsimage} 2>/dev/null || true
         
         # 删除不需要的大包
         rm -rf feeds/packages/net/onionshare-cli 2>/dev/null || true
+        rm -rf feeds/smpackage/webd 2>/dev/null || true
         find . -name "onionshare-cli" -type d -exec rm -rf {} \; 2>/dev/null || true
         
-        # 删除 samba4（如果有的话，避免与 ksmbd 冲突）
+        # 删除 samba4
         rm -rf feeds/smpackage/samba4* 2>/dev/null || true
         rm -rf feeds/*/net/samba4 2>/dev/null || true
         find . -name "samba4" -type d -exec rm -rf {} \; 2>/dev/null || true
@@ -133,8 +135,6 @@ jobs:
           printf '\ndefine Package/dbus-libs\n  SECTION:=libs\n  CATEGORY:=Libraries\n  DEPENDS:=+libexpat\n  TITLE:=D-Bus library\nendef\n\ndefine Package/dbus-libs/install\n\t$(INSTALL_DIR) $(1)/usr/lib\n\t$(CP) $(PKG_INSTALL_DIR)/usr/lib/libdbus-1.so* $(1)/usr/lib/\nendef\n\n$(eval $(call BuildPackage,dbus-libs))\n' >> "$DBUS_MK"
           echo "  ✅ dbus-libs 修复已应用"
         fi
-        # 删除有问题的 webd（以后需要可删除这行）
-        rm -rf feeds/smpackage/webd 2>/dev/null || true
         
         rm -rf tmp/
         echo "✅ 冲突包已清除"
@@ -218,11 +218,16 @@ jobs:
         enable_pkg "luci-i18n-ttyd-zh-cn"
         enable_pkg "luci-i18n-ssr-plus-zh-cn"
         enable_pkg "luci-i18n-cupsd-zh-cn"
+        enable_pkg "luci-i18n-adblock-zh-cn"
+        enable_pkg "luci-i18n-nlbwmon-zh-cn"
+        enable_pkg "luci-i18n-commands-zh-cn"
+        enable_pkg "luci-i18n-watchcat-zh-cn"
         
         echo ""
         echo "【强制启用打印机驱动】"
         enable_pkg "brlaser"
         enable_pkg "hplip-ppds"
+        enable_pkg "gutenprint"
         
         echo ""
         echo "【强制启用基础依赖】"
@@ -243,8 +248,9 @@ jobs:
         echo ""
         echo "【强制启用核心功能包】"
         enable_pkg "cups"
-        enable_pkg "openprinting-cups-filters"
+        enable_pkg "cups-filters"
         enable_pkg "cups-bjnp"
+        enable_pkg "ghostscript"
         enable_pkg "avahi"
         enable_pkg "avahi-dbus-daemon"
         enable_pkg "luci-app-cupsd"
@@ -261,6 +267,14 @@ jobs:
         enable_pkg "luci-app-vlmcsd"
         enable_pkg "curl"
         enable_pkg "libcurl"
+        enable_pkg "adblock"
+        enable_pkg "luci-app-adblock"
+        enable_pkg "nlbwmon"
+        enable_pkg "luci-app-nlbwmon"
+        enable_pkg "luci-app-commands"
+        enable_pkg "watchcat"
+        enable_pkg "luci-app-watchcat"
+        enable_pkg "luci-app-autoreboot"
         
         # 禁用有问题的包（mosdns Go 版本不兼容）
         sed -i 's/^CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/' .config
@@ -369,7 +383,7 @@ jobs:
         echo ""
         echo "【CUPS 打印】"
         check_config "cups"
-        check_config "openprinting-cups-filters"
+        check_config "cups-filters"
         check_config "luci-app-cupsd"
         check_config "avahi-dbus-daemon" "optional" "no"
         echo ""
@@ -382,6 +396,10 @@ jobs:
         check_config "luci-app-upnp"
         check_config "luci-app-ddns"
         check_config "luci-app-wol"
+        check_config "luci-app-adblock"
+        check_config "luci-app-nlbwmon"
+        check_config "luci-app-commands"
+        check_config "luci-app-watchcat"
         echo ""
         
         if [ "$FAIL" -eq 1 ]; then
@@ -472,10 +490,16 @@ jobs:
         echo "- ✅ ksmbd 文件共享" >> release.txt
         echo "- ✅ SSR-Plus 代理" >> release.txt
         echo "- ✅ 网络工具 (UPnP, DDNS, WoL, SQM)" >> release.txt
+        echo "- ✅ 广告屏蔽 (adblock)" >> release.txt
+        echo "- ✅ 网络流量统计 (nlbwmon)" >> release.txt
+        echo "- ✅ Web 命令执行 (commands)" >> release.txt
+        echo "- ✅ 断网自动重启 (watchcat)" >> release.txt
+        echo "- ✅ 定时重启 (autoreboot)" >> release.txt
         echo "" >> release.txt
         echo "### 🖨️ 打印机驱动" >> release.txt
         echo "- Brother (brlaser)" >> release.txt
         echo "- HP (hplip-ppds)" >> release.txt
+        echo "- Gutenprint" >> release.txt
         echo "" >> release.txt
         echo "**编译时间**: $(date '+%Y-%m-%d %H:%M:%S')" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
