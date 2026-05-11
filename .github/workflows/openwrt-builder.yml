@@ -75,28 +75,47 @@ jobs:
     - name: Install feeds - third party (precise)
       run: |
         cd openwrt
-        # 从 smpackage 精确安装
+
+        # ===== smpackage 源 =====
+        # CUPS 打印核心
+        ./scripts/feeds install -p smpackage cups
+        ./scripts/feeds install -p smpackage libcupsimage
+        ./scripts/feeds install -p smpackage cups-filters
         ./scripts/feeds install -p smpackage luci-app-cupsd
+        # SSR-Plus
         ./scripts/feeds install -p smpackage luci-app-ssr-plus
-        ./scripts/feeds install -p smpackage vlmcsd
-        ./scripts/feeds install -p smpackage luci-app-vlmcsd
+        ./scripts/feeds install -p smpackage luci-i18n-ssr-plus-zh-cn
+        ./scripts/feeds install -p smpackage xray-core
         ./scripts/feeds install -p smpackage v2ray-geodata
         ./scripts/feeds install -p smpackage v2ray-geosite
-        
-        # CUPS 核心从 smpackage 安装
-        ./scripts/feeds install -p smpackage cups
-        ./scripts/feeds install -p smpackage cups-filters
-        
-        # 从 immortalwrt 精确安装
-        ./scripts/feeds install -p immortalwrt cups-bjnp
-        ./scripts/feeds install -p immortalwrt ghostscript
-        ./scripts/feeds install -p immortalwrt hplip-ppds
-        ./scripts/feeds install -p immortalwrt gutenprint
-        ./scripts/feeds install -p immortalwrt luci-app-autoreboot
-        
-        # 从 brlaser 源精确安装
+        # KMS 激活
+        ./scripts/feeds install -p smpackage vlmcsd
+        ./scripts/feeds install -p smpackage luci-app-vlmcsd
+        # ksmbd 共享
+        ./scripts/feeds install -p smpackage autoshare-ksmbd
+        ./scripts/feeds install -p smpackage luci-app-ksmbd
+        ./scripts/feeds install -p smpackage luci-i18n-ksmbd-zh-cn
+
+        # ===== printing 源（tobiaswaldvogel）=====
+        ./scripts/feeds install -p printing ghostscript
+        ./scripts/feeds install -p printing gutenprint
+        ./scripts/feeds install -p printing cups-bjnp
+
+        # ===== hplip-feed 源（woniuzfb）=====
+        ./scripts/feeds install -p hplip-feed hplip
+
+        # ===== brlaser 源 =====
         ./scripts/feeds install -p brlaser brlaser
-        
+
+        # ===== immortalwrt 源 =====
+        ./scripts/feeds install -p immortalwrt luci-app-autoreboot
+
+        # ===== 官方 packages 源 =====
+        ./scripts/feeds install -p packages luci-app-adblock
+        ./scripts/feeds install -p packages luci-app-nlbwmon
+        ./scripts/feeds install -p packages luci-app-commands
+        ./scripts/feeds install -p packages luci-app-watchcat
+
         echo "✅ 精确安装完成"
 
     - name: Run diy-part2.sh
