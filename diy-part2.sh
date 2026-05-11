@@ -198,9 +198,9 @@ echo "===== 安装中文语言包 ====="
 echo "===== 安装打印机驱动 ====="
 
 # 从 immortalwrt 源安装打印相关包
-./scripts/feeds install -p immortalwrt ghostscript && echo "  ✅ ghostscript" || echo "  ⚠️ ghostscript 失败"
-./scripts/feeds install -p immortalwrt hplip-ppds && echo "  ✅ hplip-ppds" || echo "  ⚠️ hplip-ppds 失败"
-./scripts/feeds install -p immortalwrt gutenprint && echo "  ✅ gutenprint" || echo "  ⚠️ gutenprint 失败"
+./scripts/feeds install -p printing ghostscript && echo "  ✅ ghostscript" || echo "  ⚠️ ghostscript 失败"
+./scripts/feeds install -p printing hplip-ppds && echo "  ✅ hplip-ppds" || echo "  ⚠️ hplip-ppds 失败"
+./scripts/feeds install -p hplip-feed gutenprint && echo "  ✅ gutenprint" || echo "  ⚠️ gutenprint 失败"
 
 # 从 brlaser 源安装 Brother 驱动
 if ./scripts/feeds update brlaser 2>/dev/null; then
