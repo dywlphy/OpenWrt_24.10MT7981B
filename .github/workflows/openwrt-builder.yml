@@ -245,7 +245,7 @@ jobs:
         echo ""
         echo "【强制启用打印机驱动】"
         enable_pkg "brlaser"
-        enable_pkg "hplip-ppds"
+        enable_pkg "hplip"
         enable_pkg "gutenprint"
         
         echo ""
