@@ -131,10 +131,10 @@ jobs:
           sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' feeds/printing/lcms2/Makefile
           echo "✅ lcms2 Makefile 依赖已修复"
         fi
-        if [ -f "feeds/printing/brlaser/test/tempfile.h" ]; then
-          sed -i '1i #include <cstdint>' feeds/printing/brlaser/test/tempfile.h
-          echo "✅ brlaser tempfile.h 修复"
-        fi
+        #if [ -f "feeds/printing/brlaser/test/tempfile.h" ]; then
+          #sed -i '1i #include <cstdint>' feeds/printing/brlaser/test/tempfile.h
+          #echo "✅ brlaser tempfile.h 修复"
+        #fi
         if [ -f "feeds/printing/cups-bjnp/Makefile" ]; then
           sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
           echo "✅ cups-bjnp Makefile 依赖已修复"
@@ -481,6 +481,8 @@ jobs:
       id: compile
       run: |
         cd openwrt
+        # 修复 brlaser 源码（源码在 build_dir 不在 feeds）
+        find build_dir -path "*/brlaser*/test/tempfile.h" -exec sed -i '1i #include <cstdint>' {} \; 2>/dev/null || true
         echo -e "$(nproc) thread compile"
         
         make -j$(nproc) 2>&1 | tee build.log
