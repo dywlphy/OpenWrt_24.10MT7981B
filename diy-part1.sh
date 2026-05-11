@@ -6,6 +6,7 @@ echo "src-git packages https://github.com/openwrt/packages.git;openwrt-24.10" >>
 echo "src-git luci https://github.com/openwrt/luci.git;openwrt-24.10" >> feeds.conf
 # 第三方源（只加必要的）
 echo "src-git smpackage https://github.com/dywlphy/small-package" >> feeds.conf
+echo "src-git printing https://github.com/woniuzfb/openwrt-24-printing-packages" >> feeds.conf
 echo "src-git immortalwrt https://github.com/immortalwrt/packages" >> feeds.conf
 echo "src-git brlaser https://github.com/pdewacht/brlaser.git" >> feeds.conf
 echo "✅ feeds.conf 配置完成（5个源）"
