@@ -118,7 +118,14 @@ jobs:
         ./scripts/feeds install -p packages luci-app-nlbwmon
         ./scripts/feeds install -p packages luci-app-commands
         ./scripts/feeds install -p packages luci-app-watchcat
-
+        echo "===== 修复 libcupsfilters 依赖 ====="
+        if [ -f "feeds/printing/libcupsfilters/Makefile" ]; then
+          echo "修复 libcupsfilters Makefile 依赖..."
+          sed -i 's/DEPENDS:=/DEPENDS:=+lcms2 /' feeds/printing/libcupsfilters/Makefile
+          sed -i '/DEPENDS:/s/$/ +lcms2/' feeds/printing/libcupsfilters/Makefile
+          echo "✅ libcupsfilters 依赖已修复"
+        fi
+        
         echo "✅ 精确安装完成"
 
     - name: Run diy-part2.sh
