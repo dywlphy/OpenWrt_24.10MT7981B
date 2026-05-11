@@ -193,23 +193,6 @@ echo "===== 安装中文语言包 ====="
 ./scripts/feeds install luci-i18n-autoreboot-zh-cn 2>/dev/null && echo "  ✅ luci-i18n-autoreboot-zh-cn" || echo "  ⚠️ luci-i18n-autoreboot-zh-cn 失败"
 
 # ==========================================
-# 7. 安装打印机驱动（从对应源精确安装）
-# ==========================================
-echo "===== 安装打印机驱动 ====="
-
-# 从 immortalwrt 源安装打印相关包
-./scripts/feeds install -p printing ghostscript && echo "  ✅ ghostscript" || echo "  ⚠️ ghostscript 失败"
-./scripts/feeds install -p printing hplip-ppds && echo "  ✅ hplip-ppds" || echo "  ⚠️ hplip-ppds 失败"
-./scripts/feeds install -p hplip-feed gutenprint && echo "  ✅ gutenprint" || echo "  ⚠️ gutenprint 失败"
-
-# 从 brlaser 源安装 Brother 驱动
-if ./scripts/feeds update brlaser 2>/dev/null; then
-    ./scripts/feeds install -p brlaser brlaser && echo "  ✅ brlaser" || echo "  ⚠️ brlaser 失败"
-else
-    echo "  ⚠️ brlaser 源更新失败"
-fi
-
-# ==========================================
 # 8. 安装 avahi（网络打印机发现）
 # ==========================================
 echo "===== 安装 avahi ====="
