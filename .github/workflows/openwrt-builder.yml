@@ -43,9 +43,12 @@ jobs:
         [ -f config.txt ] && cp config.txt openwrt/.config
         [ -f diy-part1.sh ] && cp diy-part1.sh openwrt/
         [ -f diy-part2.sh ] && cp diy-part2.sh openwrt/
+        sed -i 's/\r$//' openwrt/diy-part1.sh openwrt/diy-part2.sh 2>/dev/null || true
         chmod +x openwrt/diy-part1.sh openwrt/diy-part2.sh 2>/dev/null || true
         cd openwrt
         ./diy-part1.sh
+        echo "--- feeds.conf 内容 ---"
+        cat -A feeds.conf
 
     - name: Cache OpenWrt source packages (dl)
       uses: actions/cache@v4
