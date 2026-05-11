@@ -93,6 +93,8 @@ jobs:
         ./scripts/feeds install -p cups ghostscript
         ./scripts/feeds install -p cups gutenprint
         ./scripts/feeds install -p cups hplip-ppds
+
+        ./scripts/feeds install -p immortalwrt cups-bjnp
         
         # 从 brlaser 源精确安装
         ./scripts/feeds install -p brlaser brlaser
