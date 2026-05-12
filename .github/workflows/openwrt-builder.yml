@@ -474,16 +474,23 @@ jobs:
       run: cd openwrt && make download -j8 || make download -j1 V=s
 
     - name: Compile OpenWRT firmware
+      id: compile
       run: |
         cd openwrt
         # 先触发 brlaser 源码下载
         make package/feeds/printing/brlaser/prepare V=s 2>&1 | tail -5
         
-        # 删除 brlaser 测试目录（测试代码有 bug，不影响驱动功能）
+        # 禁用 brlaser 测试编译
         BRLASER_DIR=$(find build_dir -type d -name "brlaser-*" 2>/dev/null | head -1)
         if [ -n "$BRLASER_DIR" ]; then
           rm -rf "$BRLASER_DIR/test"
-          echo "✅ brlaser test 目录已删除"
+          if [ -f "$BRLASER_DIR/CMakeLists.txt" ]; then
+            sed -i '/add_subdirectory(test)/d' "$BRLASER_DIR/CMakeLists.txt"
+            sed -i '/enable_testing/d' "$BRLASER_DIR/CMakeLists.txt"
+          fi
+          # 重新标记 .prepared 防止 make 重新 prepare
+          touch "$BRLASER_DIR"/.prepared_* 2>/dev/null || true
+          echo "✅ brlaser test 已禁用"
         fi
         
         echo -e "$(nproc) thread compile"
