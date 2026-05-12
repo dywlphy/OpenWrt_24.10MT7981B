@@ -136,7 +136,11 @@ jobs:
           sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
           echo "✅ cups-bjnp Makefile 依赖已修复"
         fi
-        echo "✅ 精确安装完成"
+        # 修复 brlaser：每次 prepare 后自动删除有 bug 的 test 目录
+        if [ -f "feeds/printing/brlaser/Makefile" ]; then
+          printf '\ndefine Build/Prepare\n\t$(call Build/Prepare/Default)\n\trm -rf $(PKG_BUILD_DIR)/test\nendef\n' >> feeds/printing/brlaser/Makefile
+          echo "✅ brlaser 测试已禁用"
+        fi
         
     - name: Run diy-part2.sh
       run: |
@@ -473,28 +477,19 @@ jobs:
     - name: Download packages
       run: cd openwrt && make download -j8 || make download -j1 V=s
 
-    - name: Compile OpenWRT firmware
+    - name: Build OpenWRT
       id: compile
       run: |
         cd openwrt
-        # 先触发 brlaser 源码下载
-        make package/feeds/printing/brlaser/prepare V=s 2>&1 | tail -5
-        
-        # 禁用 brlaser 测试编译
-        BRLASER_DIR=$(find build_dir -type d -name "brlaser-*" 2>/dev/null | head -1)
-        if [ -n "$BRLASER_DIR" ]; then
-          rm -rf "$BRLASER_DIR/test"
-          if [ -f "$BRLASER_DIR/CMakeLists.txt" ]; then
-            sed -i '/add_subdirectory(test)/d' "$BRLASER_DIR/CMakeLists.txt"
-            sed -i '/enable_testing/d' "$BRLASER_DIR/CMakeLists.txt"
-          fi
-          # 重新标记 .prepared 防止 make 重新 prepare
-          touch "$BRLASER_DIR"/.prepared_* 2>/dev/null || true
-          echo "✅ brlaser test 已禁用"
-        fi
-        
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) 2>&1 | tee build.log
+        make -j$(nproc) || make -j8 || make -j1 V=s
+        if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            echo "Build success with -j$(nproc)"
+        else
+            echo "Build failed, extracting errors..."
+            grep -E "error:|undefined reference|cannot find -l|fatal error" build.log | tail -30
+            echo "Retrying with -j1 V=s for detailed error..."
+            make -j1 V=s 2>&1 | tee -a build.log
             if [ ${PIPESTATUS[0]} -ne 0 ]; then
                 echo "========== BUILD FAILED =========="
                 grep -E "error:|undefined reference|cannot find -l|fatal error" build.log | tail -50
