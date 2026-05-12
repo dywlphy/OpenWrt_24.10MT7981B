@@ -108,7 +108,7 @@ jobs:
         ./scripts/feeds install -p hplipfeed hplip
 
         # ===== brlaser 源 =====
-        ./scripts/feeds install -p brlaser brlaser
+        # ./scripts/feeds install -p brlaser brlaser
 
         # ===== immortalwrt 源 =====
         ./scripts/feeds install -p immortalwrt luci-app-autoreboot
