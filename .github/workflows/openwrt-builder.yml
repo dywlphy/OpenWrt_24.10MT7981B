@@ -137,8 +137,9 @@ jobs:
           echo "✅ cups-bjnp Makefile 依赖已修复"
         fi
         # 修复 brlaser：每次 prepare 后自动删除有 bug 的 test 目录
+        # 修复 brlaser：禁用有 bug 的测试编译
         if [ -f "feeds/printing/brlaser/Makefile" ]; then
-          printf '\ndefine Build/Prepare\n\t$(call Build/Prepare/Default)\n\trm -rf $(PKG_BUILD_DIR)/test\nendef\n' >> feeds/printing/brlaser/Makefile
+          sed -i 's/$(MAKE) -C.*PKG_BUILD_DIR.*/$(MAKE) -C $(PKG_BUILD_DIR) brlaser/' feeds/printing/brlaser/Makefile
           echo "✅ brlaser 测试已禁用"
         fi
         
