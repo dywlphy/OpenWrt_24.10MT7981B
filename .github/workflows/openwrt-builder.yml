@@ -121,7 +121,7 @@ jobs:
         ./scripts/feeds install -p packages luci-app-watchcat
         ./scripts/feeds install -p printing lcms2
         ./scripts/feeds install -p printing liblcms2
-        echo "===== 修复 libcupsfilters 依赖 修复 printing 源依赖====="
+        echo "===== 修复 libcupsfilters 依赖 ====="
         if [ -f "feeds/printing/libcupsfilters/Makefile" ]; then
           echo "修复 libcupsfilters Makefile 依赖..."
           sed -i 's/DEPENDS:=/DEPENDS:=+lcms2 /' feeds/printing/libcupsfilters/Makefile
@@ -132,19 +132,12 @@ jobs:
           sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' feeds/printing/lcms2/Makefile
           echo "✅ lcms2 Makefile 依赖已修复"
         fi
-        #if [ -f "feeds/printing/brlaser/test/tempfile.h" ]; then
-          #sed -i '1i #include <cstdint>' feeds/printing/brlaser/test/tempfile.h
-          #echo "✅ brlaser tempfile.h 修复"
-        #fi
         if [ -f "feeds/printing/cups-bjnp/Makefile" ]; then
           sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
           echo "✅ cups-bjnp Makefile 依赖已修复"
         fi
-        # 为 brlaser 创建补丁修复 uint8_t 问题
-        mkdir -p feeds/printing/brlaser/patches
-        printf '%s\n' '--- a/test/tempfile.h' '+++ b/test/tempfile.h' '@@ -1,3 +1,4 @@' '+#include <cstdint>' ' #ifndef TEMPFILE_H' ' #define TEMPFILE_H' > feeds/printing/brlaser/patches/001-fix-uint8_t.patch
-        echo "✅ brlaser 补丁已创建"
-
+        echo "✅ 精确安装完成"
+        
     - name: Run diy-part2.sh
       run: |
         cd openwrt
@@ -484,8 +477,16 @@ jobs:
       id: compile
       run: |
         cd openwrt
-        echo -e "$(nproc) thread compile"
+        # 先触发 brlaser 源码下载（只 prepare 不编译）
+        make package/feeds/printing/brlaser/prepare V=s 2>&1 | tail -5
         
+        # 修复 brlaser 源码
+        BRLASER_DIR=$(find build_dir -type d -name "brlaser-*" 2>/dev/null | head -1)
+        if [ -n "$BRLASER_DIR" ] && [ -f "$BRLASER_DIR/test/tempfile.h" ]; then
+          sed -i '1i #include <cstdint>' "$BRLASER_DIR/test/tempfile.h"
+          echo "✅ brlaser tempfile.h 已修复"
+        fi
+        echo -e "$(nproc) thread compile"
         make -j$(nproc) 2>&1 | tee build.log
         if [ ${PIPESTATUS[0]} -eq 0 ]; then
             echo "Build success with -j$(nproc)"
