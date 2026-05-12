@@ -521,11 +521,6 @@ EOF
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
-        echo "当前目录: $PWD"
-        echo "目录内容:"
-        ls -la
-        # 列出所有固件文件
-        ls *.img.gz *.iso *.bin 2>/dev/null || echo "没有找到固件文件"
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -565,34 +560,20 @@ EOF
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware to Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@master
       if: steps.tag.outputs.status == 'success' && !cancelled()
-      env:
-        GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       with:
+        token: ${{ secrets.RELEASES_TOKEN }}
         tag_name: ${{ steps.tag.outputs.release_tag }}
         name: "OpenWrt 24.10 - ${{ steps.tag.outputs.release_tag }}"
         body_path: release.txt
-        draft: false
-        prerelease: false
-        files: |
-          ${{ env.FIRMWARE }}/*.img.gz
-          ${{ env.FIRMWARE }}/*.iso
-          ${{ env.FIRMWARE }}/*.bin
-          ${{ env.FIRMWARE }}/*.manifest
-          ${{ env.FIRMWARE }}/sha256sums
+        files: ${{ env.FIRMWARE }}/*
 
-    - name: Delete old releases
+    - name: Remove old Releases
+      uses: dev-drprasad/delete-older-releases@master
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      run: |
-        cd openwrt
-        echo "清理旧 Release（保留最近 5 个）..."
-        gh release list --repo ${{ github.repository }} --limit 20 | tail -n +6 | while read line; do
-          tag=$(echo "$line" | awk '{print $1}')
-          if [ -n "$tag" ]; then
-            echo "删除: $tag"
-            gh release delete "$tag" --repo ${{ github.repository }} --yes 2>/dev/null || true
-          fi
-        done
+      with:
+        keep_latest: 3
+        delete_tags: true
       env:
-        GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
