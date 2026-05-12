@@ -139,7 +139,17 @@ jobs:
           sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
           echo "✅ cups-bjnp Makefile 依赖已修复"
         fi
-        
+        # 为 brlaser 创建补丁修复 uint8_t 问题
+        mkdir -p feeds/printing/brlaser/patches
+        cat > feeds/printing/brlaser/patches/001-fix-uint8_t.patch << 'EOF'
+        --- a/test/tempfile.h
+        +++ b/test/tempfile.h
+        @@ -1,3 +1,4 @@
+        +#include <cstdint>
+         #ifndef TEMPFILE_H
+          #define TEMPFILE_H
+        EOF
+        echo "✅ brlaser 补丁已创建"
         echo "✅ 精确安装完成"
 
     - name: Run diy-part2.sh
@@ -481,8 +491,6 @@ jobs:
       id: compile
       run: |
         cd openwrt
-        # 修复 brlaser 源码（源码在 build_dir 不在 feeds）
-        find build_dir -path "*/brlaser*/test/tempfile.h" -exec sed -i '1i #include <cstdint>' {} \; 2>/dev/null || true
         echo -e "$(nproc) thread compile"
         
         make -j$(nproc) 2>&1 | tee build.log
