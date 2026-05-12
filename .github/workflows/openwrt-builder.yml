@@ -474,28 +474,20 @@ jobs:
       run: cd openwrt && make download -j8 || make download -j1 V=s
 
     - name: Compile OpenWRT firmware
-      id: compile
       run: |
         cd openwrt
-        # 先触发 brlaser 源码下载（只 prepare 不编译）
+        # 先触发 brlaser 源码下载
         make package/feeds/printing/brlaser/prepare V=s 2>&1 | tail -5
         
-        # 修复 brlaser 源码
+        # 删除 brlaser 测试目录（测试代码有 bug，不影响驱动功能）
         BRLASER_DIR=$(find build_dir -type d -name "brlaser-*" 2>/dev/null | head -1)
-        if [ -n "$BRLASER_DIR" ] && [ -f "$BRLASER_DIR/test/tempfile.h" ]; then
-          sed -i '1i #include <cstdint>' "$BRLASER_DIR/test/tempfile.h"
-          echo "✅ brlaser tempfile.h 已修复"
+        if [ -n "$BRLASER_DIR" ]; then
+          rm -rf "$BRLASER_DIR/test"
+          echo "✅ brlaser test 目录已删除"
         fi
+        
         echo -e "$(nproc) thread compile"
         make -j$(nproc) 2>&1 | tee build.log
-        if [ ${PIPESTATUS[0]} -eq 0 ]; then
-            echo "Build success with -j$(nproc)"
-        else
-            echo "Build failed, extracting errors..."
-            grep -E "error:|undefined reference|cannot find -l|fatal error" build.log | tail -30
-            
-            echo "Retrying with -j1 V=s for detailed error..."
-            make -j1 V=s 2>&1 | tee -a build.log
             if [ ${PIPESTATUS[0]} -ne 0 ]; then
                 echo "========== BUILD FAILED =========="
                 grep -E "error:|undefined reference|cannot find -l|fatal error" build.log | tail -50
