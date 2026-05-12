@@ -521,6 +521,11 @@ EOF
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
+        echo "当前目录: $PWD"
+        echo "目录内容:"
+        ls -la
+        # 列出所有固件文件
+        ls *.img.gz *.iso *.bin 2>/dev/null || echo "没有找到固件文件"
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -553,7 +558,7 @@ EOF
         echo "" >> release.txt
         echo "### 🖨️ 打印机驱动" >> release.txt
         echo "- Brother (brlaser)" >> release.txt
-        echo "- HP (hplip-ppds)" >> release.txt
+        echo "- HP (hplip)" >> release.txt
         echo "- Gutenprint" >> release.txt
         echo "" >> release.txt
         echo "**编译时间**: $(date '+%Y-%m-%d %H:%M:%S')" >> release.txt
@@ -570,7 +575,12 @@ EOF
         body_path: release.txt
         draft: false
         prerelease: false
-        files: ${{ env.FIRMWARE }}/*
+        files: |
+          ${{ env.FIRMWARE }}/*.img.gz
+          ${{ env.FIRMWARE }}/*.iso
+          ${{ env.FIRMWARE }}/*.bin
+          ${{ env.FIRMWARE }}/*.manifest
+          ${{ env.FIRMWARE }}/sha256sums
 
     - name: Delete old releases
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
