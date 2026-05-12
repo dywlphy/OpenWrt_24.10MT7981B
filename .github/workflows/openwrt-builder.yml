@@ -136,13 +136,7 @@ jobs:
           sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
           echo "✅ cups-bjnp Makefile 依赖已修复"
         fi
-        # 修复 brlaser：每次 prepare 后自动删除有 bug 的 test 目录
-        # 修复 brlaser：禁用有 bug 的测试编译
-        if [ -f "feeds/printing/brlaser/Makefile" ]; then
-          sed -i 's/$(MAKE) -C.*PKG_BUILD_DIR.*/$(MAKE) -C $(PKG_BUILD_DIR) brlaser/' feeds/printing/brlaser/Makefile
-          echo "✅ brlaser 测试已禁用"
-        fi
-        
+
     - name: Run diy-part2.sh
       run: |
         cd openwrt
@@ -269,7 +263,6 @@ jobs:
         
         echo ""
         echo "【强制启用打印机驱动】"
-        enable_pkg "brlaser"
         enable_pkg "hplip"
         enable_pkg "gutenprint"
         
@@ -478,12 +471,12 @@ jobs:
     - name: Download packages
       run: cd openwrt && make download -j8 || make download -j1 V=s
 
-    - name: Build OpenWRT
+    - name: Compile OpenWRT firmware
       id: compile
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j8 || make -j1 V=s
+        make -j$(nproc) 2>&1 | tee build.log
         if [ ${PIPESTATUS[0]} -eq 0 ]; then
             echo "Build success with -j$(nproc)"
         else
@@ -540,7 +533,6 @@ jobs:
         echo "- ✅ 定时重启 (autoreboot)" >> release.txt
         echo "" >> release.txt
         echo "### 🖨️ 打印机驱动" >> release.txt
-        echo "- Brother (brlaser)" >> release.txt
         echo "- HP (hplip)" >> release.txt
         echo "- Gutenprint" >> release.txt
         echo "" >> release.txt
