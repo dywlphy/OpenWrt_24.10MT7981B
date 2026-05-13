@@ -30,7 +30,6 @@ jobs:
         sudo docker image prune --all --force
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3 python3-pip python3-ply python3-setuptools rsync swig unzip zlib1g-dev file wget cpio rsync unzip file libelf-dev libfuse-dev libpam0g-dev libzstd-dev cups libcups2-dev
-        # sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone Asia/Shanghai
 
@@ -48,7 +47,7 @@ jobs:
         cd openwrt
         ./diy-part1.sh
         echo "--- feeds.conf 内容 ---"
-        cat -A feeds.conf
+        cat feeds.conf
 
     - name: Cache OpenWrt source packages (dl)
       uses: actions/cache@v4
@@ -80,21 +79,17 @@ jobs:
         cd openwrt
 
         # ===== smpackage 源 =====
-        # CUPS 打印核心
         ./scripts/feeds install -p smpackage cups
         ./scripts/feeds install -p smpackage libcupsimage
         ./scripts/feeds install -p smpackage cups-filters
         ./scripts/feeds install -p smpackage luci-app-cupsd
-        # SSR-Plus
         ./scripts/feeds install -p smpackage luci-app-ssr-plus
         ./scripts/feeds install -p smpackage luci-i18n-ssr-plus-zh-cn
         ./scripts/feeds install -p smpackage xray-core
         ./scripts/feeds install -p smpackage v2ray-geodata
         ./scripts/feeds install -p smpackage v2ray-geosite
-        # KMS 激活
         ./scripts/feeds install -p smpackage vlmcsd
         ./scripts/feeds install -p smpackage luci-app-vlmcsd
-        # ksmbd 共享
         ./scripts/feeds install -p smpackage autoshare-ksmbd
         ./scripts/feeds install -p smpackage luci-app-ksmbd
         ./scripts/feeds install -p smpackage luci-i18n-ksmbd-zh-cn
@@ -103,13 +98,10 @@ jobs:
         ./scripts/feeds install -p printing ghostscript
         ./scripts/feeds install -p printing gutenprint
         ./scripts/feeds install -p printing cups-bjnp
+        ./scripts/feeds install -p printing lcms2
 
         # ===== hplipfeed 源（woniuzfb）=====
         ./scripts/feeds install -p hplipfeed hplip
-
-        # ===== brlaser 源 =====
-        # ./scripts/feeds install -p brlaser brlaser
-        # ./scripts/feeds install -p printing brlaser
 
         # ===== immortalwrt 源 =====
         ./scripts/feeds install -p immortalwrt luci-app-autoreboot
@@ -119,23 +111,6 @@ jobs:
         ./scripts/feeds install -p packages luci-app-nlbwmon
         ./scripts/feeds install -p packages luci-app-commands
         ./scripts/feeds install -p packages luci-app-watchcat
-        # ./scripts/feeds install -p printing lcms2
-        # ./scripts/feeds install -p printing liblcms2
-        echo "===== 修复 libcupsfilters 依赖 ====="
-        # if [ -f "feeds/printing/libcupsfilters/Makefile" ]; then
-         # echo "修复 libcupsfilters Makefile 依赖..."
-         # sed -i 's/DEPENDS:=/DEPENDS:=+lcms2 /' feeds/printing/libcupsfilters/Makefile
-         # sed -i '/DEPENDS:/s/$/ +lcms2/' feeds/printing/libcupsfilters/Makefile
-         # echo "✅ libcupsfilters 依赖已修复"
-        # fi
-        #if [ -f "feeds/printing/lcms2/Makefile" ]; then
-          #sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' feeds/printing/lcms2/Makefile
-          #echo "✅ lcms2 Makefile 依赖已修复"
-        #fi
-        #if [ -f "feeds/printing/cups-bjnp/Makefile" ]; then
-          #sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
-          #echo "✅ cups-bjnp Makefile 依赖已修复"
-        #fi
 
     - name: Run diy-part2.sh
       run: |
@@ -145,62 +120,28 @@ jobs:
     - name: Remove conflicting packages
       run: |
         cd openwrt
-        # 删除 smpackage 中与官方冲突的包
         rm -rf feeds/smpackage/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,vsftpd*,miniupnpd-iptables,wireless-regdb,curl,dbus,openssl} 2>/dev/null || true
-        
-        # 删除 immortalwrt 中与官方/smpackage 冲突的包
         rm -rf feeds/immortalwrt/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,curl,dbus,openssl,cups,cups-filters,libcups,libcupsimage} 2>/dev/null || true
-        
-        # 删除不需要的大包
         rm -rf feeds/packages/net/onionshare-cli 2>/dev/null || true
         rm -rf feeds/smpackage/webd 2>/dev/null || true
         find . -name "onionshare-cli" -type d -exec rm -rf {} \; 2>/dev/null || true
-        
-        # 删除 samba4
         rm -rf feeds/smpackage/samba4* 2>/dev/null || true
         rm -rf feeds/*/net/samba4 2>/dev/null || true
         find . -name "samba4" -type d -exec rm -rf {} \; 2>/dev/null || true
-        
-        # 清理 index
         for idx in feeds/*.index; do
           [ -f "$idx" ] && sed -i '/onionshare-cli/d' "$idx" || true
         done
-        
-        # dbus-libs 修复（必须在所有 feeds 操作之后）
         DBUS_MK="feeds/packages/utils/dbus/Makefile"
         if [ -f "$DBUS_MK" ] && ! grep -q "Package/dbus-libs" "$DBUS_MK"; then
           sed -i '/^define Package\/dbus$/,/^endef$/{ /DEPENDS:/ s/$/ +dbus-libs/ }' "$DBUS_MK"
           printf '\ndefine Package/dbus-libs\n  SECTION:=libs\n  CATEGORY:=Libraries\n  DEPENDS:=+libexpat\n  TITLE:=D-Bus library\nendef\n\ndefine Package/dbus-libs/install\n\t$(INSTALL_DIR) $(1)/usr/lib\n\t$(CP) $(PKG_INSTALL_DIR)/usr/lib/libdbus-1.so* $(1)/usr/lib/\nendef\n\n$(eval $(call BuildPackage,dbus-libs))\n' >> "$DBUS_MK"
           echo "  ✅ dbus-libs 修复已应用"
         fi
-        
         rm -rf tmp/
         echo "✅ 冲突包已清除"
 
     - name: Run make defconfig
-      run: |
-        cd openwrt
-        make defconfig
-
-    - name: Debug Print feeds conf
-      run: |
-        cd openwrt
-        echo ""
-        echo "╔══════════════════════════════════════╗"
-        echo "║  📄 feeds.conf 内容                  ║"
-        echo "╚══════════════════════════════════════╝"
-        cat feeds.conf 2>/dev/null || echo "feeds.conf 不存在"
-        echo ""
-
-    - name: Debug Print Chinese packages in config
-      run: |
-        cd openwrt
-        echo ""
-        echo "╔══════════════════════════════════════╗"
-        echo "║  📄 .config 中的中文包配置           ║"
-        echo "╚══════════════════════════════════════╝"
-        grep -E "luci-i18n.*zh-cn" .config 2>/dev/null || echo "无中文包配置"
-        echo ""
+      run: cd openwrt && make defconfig
 
     - name: Force enable key packages
       run: |
@@ -314,159 +255,14 @@ jobs:
         enable_pkg "luci-app-watchcat"
         enable_pkg "luci-app-autoreboot"
         
-        # 禁用有问题的包（mosdns Go 版本不兼容）
         sed -i 's/^CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/' .config
         sed -i 's/^CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS is not set/' .config
-        
-        # GRUB timeout
         sed -i 's/CONFIG_GRUB_TIMEOUT=.*/CONFIG_GRUB_TIMEOUT=0/' .config
         echo "CONFIG_GRUB_TIMEOUT=0" >> .config
         echo "==========================="
 
-    - name: Debug Print all Chinese packages in config
-      run: |
-        cd openwrt
-        echo ""
-        echo "╔══════════════════════════════════════╗"
-        echo "║  📋 .config 中所有中文包              ║"
-        echo "╚══════════════════════════════════════╝"
-        echo ""
-        grep "^CONFIG_PACKAGE_luci-i18n" .config | sed 's/^/  /' || echo "  (无中文包配置)"
-        echo ""
-
-    - name: Check Chinese packages in config
-      run: |
-        cd openwrt
-        
-        echo ""
-        echo "╔══════════════════════════════════════╗"
-        echo "║  🔍 检查中文包是否写入 .config       ║"
-        echo "╚══════════════════════════════════════╝"
-        echo ""
-        
-        FAIL=0
-        
-        check_i18n_config() {
-          local pkg="$1"
-          if grep -q "^CONFIG_PACKAGE_${pkg}=y" .config 2>/dev/null; then
-            echo "  ✅ ${pkg}"
-            return 0
-          else
-            echo "  ❌ ${pkg} 未启用"
-            FAIL=1
-            return 1
-          fi
-        }
-        
-        check_i18n_config "luci-i18n-base-zh-cn"
-        check_i18n_config "luci-i18n-firewall-zh-cn"
-        check_i18n_config "luci-i18n-opkg-zh-cn"
-        
-        echo ""
-        
-        if [ "$FAIL" -eq 1 ]; then
-          echo "╔══════════════════════════════════════╗"
-          echo "║  ❌ 中文包未写入 .config              ║"
-          echo "║  编译将无法生成中文界面               ║"
-          echo "║  已终止编译                           ║"
-          echo "╚══════════════════════════════════════╝"
-          exit 1
-        else
-          echo "╔══════════════════════════════════════╗"
-          echo "║  ✅ 中文包已写入 .config              ║"
-          echo "║  固件将包含中文界面                   ║"
-          echo "╚══════════════════════════════════════╝"
-        fi
-
-    - name: Verify package requirements
-      run: |
-        cd openwrt
-        
-        echo ""
-        echo "╔══════════════════════════════════════╗"
-        echo "║  🔍 依赖链完整性检查                 ║"
-        echo "╚══════════════════════════════════════╝"
-        echo ""
-        
-        TOTAL=$(grep -c "^CONFIG_PACKAGE_.*=y" .config)
-        echo "  已解析的包总数: $TOTAL"
-        echo ""
-        
-        FAIL=0
-        
-        check_config() {
-          local name="$1"
-          local desc="${2:-}"
-          local required="${3:-yes}"
-          if grep -q "^CONFIG_PACKAGE_${name}=y" .config 2>/dev/null; then
-            echo "  ✅ $name ${desc:+($desc)}"
-            return 0
-          fi
-          if [ "$required" = "yes" ]; then
-            echo "  ❌ $name ${desc:+($desc)}"
-            FAIL=1
-          else
-            echo "  ⚠️  $name ${desc:+($desc)} - 可选"
-          fi
-          return 0
-        }
-        
-        echo "【LuCI 核心】"
-        check_config "luci-base"
-        check_config "luci-mod-admin-full"
-        check_config "rpcd"
-        check_config "rpcd-mod-file"
-        check_config "uhttpd"
-        check_config "luci-theme-bootstrap"
-        echo ""
-        echo "【CUPS 打印】"
-        check_config "cups"
-        check_config "cups-filters"
-        check_config "luci-app-cupsd"
-        check_config "avahi-dbus-daemon" "optional" "no"
-        echo ""
-        echo "【文件共享】"
-        check_config "ksmbd-server"
-        check_config "luci-app-ksmbd"
-        echo ""
-        echo "【网络工具】"
-        check_config "luci-app-ssr-plus"
-        check_config "luci-app-upnp"
-        check_config "luci-app-ddns"
-        check_config "luci-app-wol"
-        check_config "luci-app-adblock"
-        check_config "luci-app-nlbwmon"
-        check_config "luci-app-commands"
-        check_config "luci-app-watchcat"
-        echo ""
-        
-        if [ "$FAIL" -eq 1 ]; then
-          echo "╔══════════════════════════════════════╗"
-          echo "║  ❌ 检查失败                         ║"
-          echo "╚══════════════════════════════════════╝"
-          exit 1
-        else
-          echo "╔══════════════════════════════════════╗"
-          echo "║  ✅ 检查通过                         ║"
-          echo "║  核心功能就绪: $TOTAL 包             ║"
-          echo "╚══════════════════════════════════════╝"
-        fi
-
     - name: Re-run defconfig to resolve dependencies
-      run: |
-        cd openwrt
-        make defconfig
-        echo "✅ defconfig 完成，依赖已解析"
-
-    - name: Debug - Check missing lib dependencies
-      run: |
-        cd openwrt
-        echo "=== 检查主包是否有对应的 lib 包 ==="
-        for pkg in curl dbus cups iwinfo expat; do
-          echo "--- $pkg ---"
-          grep "CONFIG_PACKAGE_${pkg}=y" .config || echo "  $pkg 未启用"
-          grep "CONFIG_PACKAGE_lib${pkg}=y" .config || echo "  ⚠️ lib${pkg} 未启用"
-        done
+      run: cd openwrt && make defconfig && echo "✅ defconfig 完成"
 
     - name: Download packages
       run: cd openwrt && make download -j8 || make download -j1 V=s
