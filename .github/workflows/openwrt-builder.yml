@@ -271,6 +271,9 @@ jobs:
       id: compile
       run: |
         cd openwrt
+        # 清理 cups-bjnp 和 libcupsfilters 的旧构建缓存（确保修复生效）
+        rm -rf build_dir/target-x86_64_musl/cups-bjnp-*
+        rm -rf build_dir/target-x86_64_musl/libcupsfilters-*
         echo -e "$(nproc) thread compile"
         make -j$(nproc) 2>&1 | tee build.log
         if [ ${PIPESTATUS[0]} -eq 0 ]; then
