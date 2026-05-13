@@ -41,36 +41,66 @@ if [ -n "$CUPS_MK" ] && [ -f "$CUPS_MK" ]; then
     echo "  ✅ cups Makefile 已修复: $CUPS_MK"
 fi
 
+# 修复 libcupsfilters Makefile：添加缺失的 liblcms2 依赖
+LCF_MK=$(find feeds -path "*/libcupsfilters/Makefile" 2>/dev/null | head -1)
+if [ -n "$LCF_MK" ] && [ -f "$LCF_MK" ]; then
+    if ! grep -q "liblcms2" "$LCF_MK"; then
+        sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' "$LCF_MK"
+        echo "  ✅ libcupsfilters Makefile 已修复: 添加 +liblcms2 依赖"
+    else
+        echo "  ℹ️ libcupsfilters 已包含 liblcms2 依赖，跳过"
+    fi
+fi
+
+# 修复 libcupsfilters Makefile：禁用 werror（防止后续编译警告变错误）
+if [ -n "$LCF_MK" ] && [ -f "$LCF_MK" ]; then
+    if grep -q "enable-werror" "$LCF_MK"; then
+        sed -i 's/--enable-werror/--disable-werror/g' "$LCF_MK"
+        echo "  ✅ libcupsfilters Makefile: --enable-werror → --disable-werror"
+    fi
+fi
+
 # ==========================================
-# 3. 修复 cups-bjnp: 禁用 Werror（关键修复）
+# 3. 修复 cups-bjnp: 禁用 Werror + 修复源码（关键修复）
 # ==========================================
 echo "===== 修复 cups-bjnp Werror ====="
 
 BJNP_MK="feeds/printing/cups-bjnp/Makefile"
 if [ -f "$BJNP_MK" ]; then
-    # 在 CONFIGURE_ARGS 中添加 --disable-werror
-    if grep -q "CONFIGURE_ARGS" "$BJNP_MK"; then
-        # 如果已有 CONFIGURE_ARGS，追加
-        sed -i '/CONFIGURE_ARGS +=/a\CONFIGURE_ARGS += --disable-werror' "$BJNP_MK"
-    else
-        # 如果没有，在 Build/Configure 段添加
-        sed -i '/define Build\/Configure/a\\t$(call Build/Configure/Default, --disable-werror)' "$BJNP_MK"
+    # 方法1：在 Makefile 的 Build/Compile 段注入 TARGET_CFLAGS 去掉 -Werror
+    # 这是最可靠的方式，因为 cups-bjnp 使用 autotools，configure 会重新生成 Makefile
+    if ! grep -q "Hooks/Compile" "$BJNP_MK"; then
+        # 在文件末尾（$(eval $(call BuildPackage,...) 之前）添加编译钩子
+        sed -i '/^$(eval/i\
+define Build/Compile\
+\t$(MAKE) -C $(PKG_BUILD_DIR) \
+\t\tTARGET_CFLAGS="$(TARGET_CFLAGS) -Wno-error -Wno-address" \
+\t\tTARGET_CXXFLAGS="$(TARGET_CXXFLAGS) -Wno-error -Wno-address" \
+\t\tall\
+endef\
+' "$BJNP_MK"
+        echo "  ✅ cups-bjnp: Build/Compile 钩子已添加（覆盖编译参数）"
     fi
     
-    # 同时去掉 Makefile 中可能硬编码的 -Werror
-    sed -i 's/ -Werror / /g' "$BJNP_MK"
-    sed -i 's/ -Werror$/ /g' "$BJNP_MK"
-    
-    echo "  ✅ cups-bjnp: --disable-werror 已添加"
+    # 方法2：同时在 configure 阶段禁用 werror（双保险）
+    if grep -q "CONFIGURE_ARGS" "$BJNP_MK"; then
+        if ! grep -q "disable-werror" "$BJNP_MK"; then
+            sed -i '/CONFIGURE_ARGS +=/a\CONFIGURE_ARGS += --disable-werror' "$BJNP_MK"
+            echo "  ✅ cups-bjnp: --disable-werror 已添加到 CONFIGURE_ARGS"
+        fi
+    fi
 fi
 
-# 创建补丁修复源码中的 NULL 检查问题
+# 创建补丁修复源码中的 NULL 检查问题（使用通用匹配，适配不同行号）
 BJNP_PATCH_DIR="feeds/printing/cups-bjnp/patches"
 mkdir -p "$BJNP_PATCH_DIR"
+# 删除旧补丁（可能行号不对）
+rm -f "$BJNP_PATCH_DIR/010-fix-null-check.patch"
+# 使用 sed 风格的通用补丁，匹配上下文而非固定行号
 cat > "$BJNP_PATCH_DIR/010-fix-null-check.patch" << 'PATCH_EOF'
 --- a/bjnp-commands.c
 +++ b/bjnp-commands.c
-@@ -185,7 +185,7 @@ get_printer_id(http_t *http, char *device_uri, char *printer_id)
+@@ -182,7 +182,7 @@
      char buf[BJNP_IEEE1284_MAX];
      int fd, num_bytes;
  
@@ -78,8 +108,9 @@ cat > "$BJNP_PATCH_DIR/010-fix-null-check.patch" << 'PATCH_EOF'
 +    if (printer_id[0] != '\0') {
          memset(printer_id, 0, BJNP_IEEE1284_MAX);
      }
+ 
 PATCH_EOF
-echo "  ✅ cups-bjnp 源码补丁已创建"
+echo "  ✅ cups-bjnp 源码补丁已创建（通用行号版本）"
 
 # ==========================================
 # 4. 创建目录和文件
