@@ -208,4 +208,19 @@ echo "===== 安装 ksmbd ====="
 ./scripts/feeds install ksmbd-utils && echo "  ✅ ksmbd-utils" || echo "  ⚠️ ksmbd-utils 失败"
 ./scripts/feeds install luci-app-ksmbd && echo "  ✅ luci-app-ksmbd" || echo "  ⚠️ luci-app-ksmbd 失败"
 
+# ==========================================
+# 10. 修复 libcupsfilters 缺少 lcms2 依赖
+# ==========================================
+echo "===== 修复 libcupsfilters 依赖 ====="
+
+# 查找 lcms2 包并安装
+LCMS2_PKG=$(find feeds -name "lcms2" -type d 2>/dev/null | head -1)
+if [ -n "$LCMS2_PKG" ]; then
+    echo "  找到 lcms2 包"
+    ./scripts/feeds install lcms2 || ./scripts/feeds install liblcms2 || true
+else
+    echo "  lcms2 包不存在，从 printing 源安装"
+    ./scripts/feeds install -p printing lcms2 || ./scripts/feeds install -p printing liblcms2 || true
+fi
+
 echo "✅ diy-part2.sh 执行完成"
