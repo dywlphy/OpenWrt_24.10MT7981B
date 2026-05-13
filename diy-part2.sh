@@ -45,8 +45,11 @@ fi
 LCF_MK=$(find feeds -path "*/libcupsfilters/Makefile" 2>/dev/null | head -1)
 if [ -n "$LCF_MK" ] && [ -f "$LCF_MK" ]; then
     if ! grep -q "liblcms2" "$LCF_MK"; then
-        sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' "$LCF_MK"
+        # 兼容多种 DEPENDS 格式：DEPENDS:=、DEPENDS:=+xxx、DEPENDS:=@xxx 等
+        # 在第一个 DEPENDS 行末尾追加 +liblcms2
+        sed -i '/^DEPENDS:/ s/$/ +liblcms2/' "$LCF_MK"
         echo "  ✅ libcupsfilters Makefile 已修复: 添加 +liblcms2 依赖"
+        echo "  📋 DEPENDS 行内容: $(grep '^DEPENDS:' "$LCF_MK")"
     else
         echo "  ℹ️ libcupsfilters 已包含 liblcms2 依赖，跳过"
     fi
