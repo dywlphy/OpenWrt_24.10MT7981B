@@ -119,19 +119,19 @@ jobs:
         ./scripts/feeds install -p packages luci-app-nlbwmon
         ./scripts/feeds install -p packages luci-app-commands
         ./scripts/feeds install -p packages luci-app-watchcat
-        ./scripts/feeds install -p printing lcms2
-        ./scripts/feeds install -p printing liblcms2
+        # ./scripts/feeds install -p printing lcms2
+        # ./scripts/feeds install -p printing liblcms2
         echo "===== 修复 libcupsfilters 依赖 ====="
-        if [ -f "feeds/printing/libcupsfilters/Makefile" ]; then
-          echo "修复 libcupsfilters Makefile 依赖..."
-          sed -i 's/DEPENDS:=/DEPENDS:=+lcms2 /' feeds/printing/libcupsfilters/Makefile
-          sed -i '/DEPENDS:/s/$/ +lcms2/' feeds/printing/libcupsfilters/Makefile
-          echo "✅ libcupsfilters 依赖已修复"
-        fi
-        if [ -f "feeds/printing/lcms2/Makefile" ]; then
-          sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' feeds/printing/lcms2/Makefile
-          echo "✅ lcms2 Makefile 依赖已修复"
-        fi
+        # if [ -f "feeds/printing/libcupsfilters/Makefile" ]; then
+         # echo "修复 libcupsfilters Makefile 依赖..."
+         # sed -i 's/DEPENDS:=/DEPENDS:=+lcms2 /' feeds/printing/libcupsfilters/Makefile
+         # sed -i '/DEPENDS:/s/$/ +lcms2/' feeds/printing/libcupsfilters/Makefile
+         # echo "✅ libcupsfilters 依赖已修复"
+        # fi
+        #if [ -f "feeds/printing/lcms2/Makefile" ]; then
+          #sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' feeds/printing/lcms2/Makefile
+          #echo "✅ lcms2 Makefile 依赖已修复"
+        #fi
         if [ -f "feeds/printing/cups-bjnp/Makefile" ]; then
           sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
           echo "✅ cups-bjnp Makefile 依赖已修复"
@@ -268,7 +268,7 @@ jobs:
         
         echo ""
         echo "【强制启用基础依赖】"
-        enable_pkg "liblcms2"
+        #enable_pkg "liblcms2"
         enable_pkg "zlib"
         enable_pkg "libcups"
         enable_pkg "libcupsimage"
