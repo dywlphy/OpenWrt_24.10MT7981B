@@ -132,10 +132,10 @@ jobs:
           #sed -i 's/DEPENDS:=/DEPENDS:=+liblcms2 /' feeds/printing/lcms2/Makefile
           #echo "✅ lcms2 Makefile 依赖已修复"
         #fi
-        if [ -f "feeds/printing/cups-bjnp/Makefile" ]; then
-          sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
-          echo "✅ cups-bjnp Makefile 依赖已修复"
-        fi
+        #if [ -f "feeds/printing/cups-bjnp/Makefile" ]; then
+          #sed -i '/DEPENDS:/s/$/ +libcups/' feeds/printing/cups-bjnp/Makefile
+          #echo "✅ cups-bjnp Makefile 依赖已修复"
+        #fi
 
     - name: Run diy-part2.sh
       run: |
