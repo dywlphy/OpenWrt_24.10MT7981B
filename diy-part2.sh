@@ -209,18 +209,33 @@ echo "===== 安装 ksmbd ====="
 ./scripts/feeds install luci-app-ksmbd && echo "  ✅ luci-app-ksmbd" || echo "  ⚠️ luci-app-ksmbd 失败"
 
 # ==========================================
-# 10. 修复 libcupsfilters 缺少 lcms2 依赖
+# 修复 libcupsfilters 缺少 liblcms2 依赖
 # ==========================================
 echo "===== 修复 libcupsfilters 依赖 ====="
 
-# 查找 lcms2 包并安装
-LCMS2_PKG=$(find feeds -name "lcms2" -type d 2>/dev/null | head -1)
-if [ -n "$LCMS2_PKG" ]; then
-    echo "  找到 lcms2 包"
-    ./scripts/feeds install lcms2 || ./scripts/feeds install liblcms2 || true
+# 安装 lcms2（从 printing 源）
+./scripts/feeds install -p printing lcms2 2>/dev/null
+if [ $? -ne 0 ]; then
+    ./scripts/feeds install -p printing liblcms2 2>/dev/null
+fi
+
+# 强制启用 liblcms2
+if ! grep -q "^CONFIG_PACKAGE_liblcms2=y" .config; then
+    echo "CONFIG_PACKAGE_liblcms2=y" >> .config
+    echo "  ✅ liblcms2 已添加到 .config"
 else
-    echo "  lcms2 包不存在，从 printing 源安装"
-    ./scripts/feeds install -p printing lcms2 || ./scripts/feeds install -p printing liblcms2 || true
+    echo "  ✅ liblcms2 已启用"
+fi
+
+# 修复 libcupsfilters Makefile，显式添加依赖
+LIBCUPSFILTERS_MK="feeds/printing/libcupsfilters/Makefile"
+if [ -f "$LIBCUPSFILTERS_MK" ]; then
+    if ! grep -q "+liblcms2" "$LIBCUPSFILTERS_MK"; then
+        sed -i 's/^  DEPENDS:=/  DEPENDS:=+liblcms2 /' "$LIBCUPSFILTERS_MK"
+        echo "  ✅ libcupsfilters Makefile 已修复（添加 liblcms2 依赖）"
+    else
+        echo "  ✅ libcupsfilters 已包含 liblcms2 依赖"
+    fi
 fi
 
 echo "✅ diy-part2.sh 执行完成"
