@@ -268,7 +268,7 @@ jobs:
         
         echo ""
         echo "【强制启用基础依赖】"
-        #enable_pkg "liblcms2"
+        enable_pkg "liblcms2"
         enable_pkg "zlib"
         enable_pkg "libcups"
         enable_pkg "libcupsimage"
