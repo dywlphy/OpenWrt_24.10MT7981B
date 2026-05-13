@@ -212,30 +212,25 @@ echo "===== 安装 ksmbd ====="
 # 修复 libcupsfilters 缺少 liblcms2 依赖
 # ==========================================
 echo "===== 修复 libcupsfilters 依赖 ====="
-
-# 安装 lcms2（从 printing 源）
-./scripts/feeds install -p printing lcms2 2>/dev/null
-if [ $? -ne 0 ]; then
-    ./scripts/feeds install -p printing liblcms2 2>/dev/null
-fi
-
-# 强制启用 liblcms2
+./scripts/feeds install -p printing lcms2 2>/dev/null || ./scripts/feeds install -p printing liblcms2 2>/dev/null
 if ! grep -q "^CONFIG_PACKAGE_liblcms2=y" .config; then
     echo "CONFIG_PACKAGE_liblcms2=y" >> .config
     echo "  ✅ liblcms2 已添加到 .config"
-else
-    echo "  ✅ liblcms2 已启用"
+fi
+LIBCUPSFILTERS_MK="feeds/printing/libcupsfilters/Makefile"
+if [ -f "$LIBCUPSFILTERS_MK" ] && ! grep -q "+liblcms2" "$LIBCUPSFILTERS_MK"; then
+    sed -i 's/^  DEPENDS:=/  DEPENDS:=+liblcms2 /' "$LIBCUPSFILTERS_MK"
+    echo "  ✅ libcupsfilters 依赖已修复"
 fi
 
-# 修复 libcupsfilters Makefile，显式添加依赖
-LIBCUPSFILTERS_MK="feeds/printing/libcupsfilters/Makefile"
-if [ -f "$LIBCUPSFILTERS_MK" ]; then
-    if ! grep -q "+liblcms2" "$LIBCUPSFILTERS_MK"; then
-        sed -i 's/^  DEPENDS:=/  DEPENDS:=+liblcms2 /' "$LIBCUPSFILTERS_MK"
-        echo "  ✅ libcupsfilters Makefile 已修复（添加 liblcms2 依赖）"
-    else
-        echo "  ✅ libcupsfilters 已包含 liblcms2 依赖"
-    fi
+# ==========================================
+# 修复 cups-bjnp: 禁用 Werror
+# ==========================================
+echo "===== 修复 cups-bjnp Werror ====="
+BJNP_MK="feeds/printing/cups-bjnp/Makefile"
+if [ -f "$BJNP_MK" ]; then
+    sed -i '/CONFIGURE_ARGS/a\CONFIGURE_ARGS += --disable-werror' "$BJNP_MK"
+    echo "  ✅ cups-bjnp Werror 已禁用"
 fi
 
 echo "✅ diy-part2.sh 执行完成"
