@@ -42,7 +42,47 @@ if [ -n "$CUPS_MK" ] && [ -f "$CUPS_MK" ]; then
 fi
 
 # ==========================================
-# 3. 创建目录和文件
+# 3. 修复 cups-bjnp: 禁用 Werror（关键修复）
+# ==========================================
+echo "===== 修复 cups-bjnp Werror ====="
+
+BJNP_MK="feeds/printing/cups-bjnp/Makefile"
+if [ -f "$BJNP_MK" ]; then
+    # 在 CONFIGURE_ARGS 中添加 --disable-werror
+    if grep -q "CONFIGURE_ARGS" "$BJNP_MK"; then
+        # 如果已有 CONFIGURE_ARGS，追加
+        sed -i '/CONFIGURE_ARGS +=/a\CONFIGURE_ARGS += --disable-werror' "$BJNP_MK"
+    else
+        # 如果没有，在 Build/Configure 段添加
+        sed -i '/define Build\/Configure/a\\t$(call Build/Configure/Default, --disable-werror)' "$BJNP_MK"
+    fi
+    
+    # 同时去掉 Makefile 中可能硬编码的 -Werror
+    sed -i 's/ -Werror / /g' "$BJNP_MK"
+    sed -i 's/ -Werror$/ /g' "$BJNP_MK"
+    
+    echo "  ✅ cups-bjnp: --disable-werror 已添加"
+fi
+
+# 创建补丁修复源码中的 NULL 检查问题
+BJNP_PATCH_DIR="feeds/printing/cups-bjnp/patches"
+mkdir -p "$BJNP_PATCH_DIR"
+cat > "$BJNP_PATCH_DIR/010-fix-null-check.patch" << 'PATCH_EOF'
+--- a/bjnp-commands.c
++++ b/bjnp-commands.c
+@@ -185,7 +185,7 @@ get_printer_id(http_t *http, char *device_uri, char *printer_id)
+     char buf[BJNP_IEEE1284_MAX];
+     int fd, num_bytes;
+ 
+-    if (printer_id != NULL) {
++    if (printer_id[0] != '\0') {
+         memset(printer_id, 0, BJNP_IEEE1284_MAX);
+     }
+PATCH_EOF
+echo "  ✅ cups-bjnp 源码补丁已创建"
+
+# ==========================================
+# 4. 创建目录和文件
 # ==========================================
 echo "===== 创建目录和文件 ====="
 mkdir -p files/etc/init.d files/etc/rc.d files/etc/avahi/services
@@ -71,7 +111,7 @@ chmod 644 files/etc/avahi/services/cups.service
 echo "  ✅ AirPrint 服务文件已创建"
 
 # ==========================================
-# 4. 服务自启动脚本
+# 5. 服务自启动脚本
 # ==========================================
 echo "===== 创建服务自启动脚本 ====="
 cat > files/etc/init.d/custom-autostart << 'EOF'
@@ -92,7 +132,7 @@ ln -sf ../init.d/custom-autostart files/etc/rc.d/S99custom-autostart
 echo "  ✅ 服务自启动脚本已创建"
 
 # ==========================================
-# 5. 自动共享脚本
+# 6. 自动共享脚本
 # ==========================================
 echo "===== 创建自动共享脚本 ====="
 cat > files/etc/init.d/auto-share-init << 'EOF'
@@ -170,7 +210,7 @@ ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
 echo "  ✅ 自动共享脚本已创建"
 
 # ==========================================
-# 6. 安装中文语言包（精确安装）
+# 7. 安装中文语言包（精确安装）
 # ==========================================
 echo "===== 安装中文语言包 ====="
 ./scripts/feeds install luci-i18n-base-zh-cn && echo "  ✅ luci-i18n-base-zh-cn" || echo "  ⚠️ luci-i18n-base-zh-cn 失败"
@@ -207,30 +247,5 @@ echo "===== 安装 ksmbd ====="
 ./scripts/feeds install ksmbd-server && echo "  ✅ ksmbd-server" || echo "  ⚠️ ksmbd-server 失败"
 ./scripts/feeds install ksmbd-utils && echo "  ✅ ksmbd-utils" || echo "  ⚠️ ksmbd-utils 失败"
 ./scripts/feeds install luci-app-ksmbd && echo "  ✅ luci-app-ksmbd" || echo "  ⚠️ luci-app-ksmbd 失败"
-
-# ==========================================
-# 修复 libcupsfilters 缺少 liblcms2 依赖
-# ==========================================
-echo "===== 修复 libcupsfilters 依赖 ====="
-./scripts/feeds install -p printing lcms2 2>/dev/null || ./scripts/feeds install -p printing liblcms2 2>/dev/null
-if ! grep -q "^CONFIG_PACKAGE_liblcms2=y" .config; then
-    echo "CONFIG_PACKAGE_liblcms2=y" >> .config
-    echo "  ✅ liblcms2 已添加到 .config"
-fi
-LIBCUPSFILTERS_MK="feeds/printing/libcupsfilters/Makefile"
-if [ -f "$LIBCUPSFILTERS_MK" ] && ! grep -q "+liblcms2" "$LIBCUPSFILTERS_MK"; then
-    sed -i 's/^  DEPENDS:=/  DEPENDS:=+liblcms2 /' "$LIBCUPSFILTERS_MK"
-    echo "  ✅ libcupsfilters 依赖已修复"
-fi
-
-# ==========================================
-# 修复 cups-bjnp: 禁用 Werror
-# ==========================================
-echo "===== 修复 cups-bjnp Werror ====="
-BJNP_MK="feeds/printing/cups-bjnp/Makefile"
-if [ -f "$BJNP_MK" ]; then
-    sed -i '/CONFIGURE_ARGS/a\CONFIGURE_ARGS += --disable-werror' "$BJNP_MK"
-    echo "  ✅ cups-bjnp Werror 已禁用"
-fi
 
 echo "✅ diy-part2.sh 执行完成"
