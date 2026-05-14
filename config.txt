@@ -152,7 +152,7 @@ CONFIG_PACKAGE_gutenprint=y
 
 # 打印机发现服务
 CONFIG_PACKAGE_avahi-dbus-daemon=y
-CONFIG_PACKAGE_dbus=y
+# dbus 由 avahi 自动依赖，不手动配置避免冲突
 
 # USB 打印机内核支持
 CONFIG_PACKAGE_kmod-usb-printer=y
@@ -162,3 +162,10 @@ CONFIG_PACKAGE_libcupsimage=y
 CONFIG_PACKAGE_liblcms2=y
 CONFIG_PACKAGE_libpng=y
 CONFIG_PACKAGE_libjpeg=y
+
+# ============================================================
+# 解决包冲突
+# ============================================================
+# 禁用 dnsmasq，使用 dnsmasq-full（ssr-plus 等需要完整版）
+# CONFIG_PACKAGE_dnsmasq is not set
+CONFIG_PACKAGE_dnsmasq-full=y
