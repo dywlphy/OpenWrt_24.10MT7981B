@@ -44,12 +44,16 @@ fi
 # 修复 libcupsfilters Makefile：添加缺失的 liblcms2 依赖
 LCF_MK=$(find feeds -path "*/libcupsfilters/Makefile" 2>/dev/null | head -1)
 if [ -n "$LCF_MK" ] && [ -f "$LCF_MK" ]; then
+    echo "  📋 找到 libcupsfilters Makefile: $LCF_MK"
+    echo "  📋 所有包含 DEPENDS 的行:"
+    grep -n -i "DEPENDS" "$LCF_MK" || echo "    (无)"
     if ! grep -q "liblcms2" "$LCF_MK"; then
-        # 兼容多种 DEPENDS 格式：DEPENDS:=、DEPENDS:=+xxx、DEPENDS:=@xxx 等
-        # 在第一个 DEPENDS 行末尾追加 +liblcms2
-        sed -i '/^DEPENDS:/ s/$/ +liblcms2/' "$LCF_MK"
+        # 兼容缩进格式：OpenWrt Makefile 中 DEPENDS 通常在 define 块内，有 tab 缩进
+        # 匹配任意位置的 DEPENDS:= 行，在末尾追加 +liblcms2
+        sed -i '/^[[:space:]]*DEPENDS/s/$/ +liblcms2/' "$LCF_MK"
         echo "  ✅ libcupsfilters Makefile 已修复: 添加 +liblcms2 依赖"
-        echo "  📋 DEPENDS 行内容: $(grep '^DEPENDS:' "$LCF_MK")"
+        echo "  📋 修复后 DEPENDS 行:"
+        grep -n -i "DEPENDS" "$LCF_MK" || echo "    (无)"
     else
         echo "  ℹ️ libcupsfilters 已包含 liblcms2 依赖，跳过"
     fi
