@@ -1,6 +1,6 @@
 # ============================================================
 # OpenWrt 24.10 x86_64  编译配置
-# 方案三：精确拉取，最小污染
+# 精简版：移除 cups-bjnp 和 libcupsfilters 等有问题包
 # ============================================================
 # ---- 目标平台 ----
 CONFIG_TARGET_x86=y
@@ -47,7 +47,6 @@ CONFIG_PACKAGE_luci-i18n-wol-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-nft-qos-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-ssr-plus-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-cupsd-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-adblock-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-nlbwmon-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-commands-zh-cn=y
@@ -69,23 +68,6 @@ CONFIG_PACKAGE_ucode-mod-nl80211=y
 CONFIG_PACKAGE_ucode-mod-resolv=y
 CONFIG_PACKAGE_ucode-mod-ubus=y
 CONFIG_PACKAGE_ucode-mod-uci=y
-
-# ============================================================
-# CUPS 打印系统
-# ============================================================
-CONFIG_PACKAGE_cups=y
-CONFIG_PACKAGE_cups-bjnp=y
-CONFIG_PACKAGE_cups-filters=y
-CONFIG_PACKAGE_ghostscript=y
-CONFIG_PACKAGE_gutenprint=y
-CONFIG_PACKAGE_luci-app-cupsd=y
-
-# 打印机发现服务
-CONFIG_PACKAGE_avahi-dbus-daemon=y
-CONFIG_PACKAGE_dbus=y
-
-# USB 打印机内核支持
-CONFIG_PACKAGE_kmod-usb-printer=y
 
 # ============================================================
 # 文件共享（ksmbd）
@@ -140,19 +122,9 @@ CONFIG_PACKAGE_cfdisk=y
 CONFIG_PACKAGE_e2fsprogs=y
 
 # ============================================================
-# 打印机驱动
-# ============================================================
-CONFIG_PACKAGE_hplip=y
-
-# ============================================================
 # 基础库依赖
 # ============================================================
 CONFIG_PACKAGE_zlib=y
-CONFIG_PACKAGE_libcups=y
-CONFIG_PACKAGE_libcupsimage=y
-CONFIG_PACKAGE_liblcms2=y
-CONFIG_PACKAGE_libpng=y
-CONFIG_PACKAGE_libjpeg=y
 CONFIG_PACKAGE_libstdcpp=y
 CONFIG_PACKAGE_libusb-1.0=y
 CONFIG_PACKAGE_libcurl=y
@@ -164,3 +136,20 @@ CONFIG_PACKAGE_libiwinfo=y
 # 禁用有问题的包
 # ============================================================
 # CONFIG_PACKAGE_mosdns is not set
+
+# 禁用 CUPS 相关（编译有问题）
+# CONFIG_PACKAGE_cups is not set
+# CONFIG_PACKAGE_cups-bjnp is not set
+# CONFIG_PACKAGE_cups-filters is not set
+# CONFIG_PACKAGE_ghostscript is not set
+# CONFIG_PACKAGE_gutenprint is not set
+# CONFIG_PACKAGE_luci-app-cupsd is not set
+# CONFIG_PACKAGE_avahi-dbus-daemon is not set
+# CONFIG_PACKAGE_dbus is not set
+# CONFIG_PACKAGE_kmod-usb-printer is not set
+# CONFIG_PACKAGE_hplip is not set
+# CONFIG_PACKAGE_libcups is not set
+# CONFIG_PACKAGE_libcupsimage is not set
+# CONFIG_PACKAGE_liblcms2 is not set
+# CONFIG_PACKAGE_libpng is not set
+# CONFIG_PACKAGE_libjpeg is not set
