@@ -221,8 +221,9 @@ jobs:
         enable_pkg "libstdcpp"
         enable_pkg "libusb-1-0"
         enable_pkg "libexpat"
-        enable_pkg "dbus"
-        enable_pkg "dbus-libs"
+        # 不强制启用 dbus，让 avahi 自动选择依赖，避免冲突
+        # enable_pkg "dbus"
+        # enable_pkg "dbus-libs"
         enable_pkg "libdaemon"
         enable_pkg "libiwinfo"
         enable_pkg "kmod-usb-printer"
@@ -230,12 +231,15 @@ jobs:
         echo ""
         echo "【强制启用核心功能包】"
         enable_pkg "cups"
-        enable_pkg "cups-filters"
-        enable_pkg "cups-bjnp"
+        # 跳过 cups-filters（依赖 libcupsfilters，编译有问题）
+        # enable_pkg "cups-filters"
+        # 跳过 cups-bjnp（Canon 打印机驱动，GCC 13 编译有问题）
+        # enable_pkg "cups-bjnp"
         enable_pkg "ghostscript"
         enable_pkg "avahi"
         enable_pkg "avahi-dbus-daemon"
-        enable_pkg "luci-app-cupsd"
+        # 跳过 luci-app-cupsd（使用 CUPS 自带 631 端口管理）
+        # enable_pkg "luci-app-cupsd"
         enable_pkg "ksmbd-server"
         enable_pkg "ksmbd-utils"
         enable_pkg "luci-app-ksmbd"
