@@ -51,6 +51,7 @@ CONFIG_PACKAGE_luci-i18n-adblock-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-nlbwmon-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-commands-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-watchcat-zh-cn=y
+# CONFIG_PACKAGE_luci-i18n-cupsd-zh-cn is not set
 
 # LuCI 运行时依赖
 CONFIG_PACKAGE_rpcd=y
@@ -137,19 +138,27 @@ CONFIG_PACKAGE_libiwinfo=y
 # ============================================================
 # CONFIG_PACKAGE_mosdns is not set
 
-# 禁用 CUPS 相关（编译有问题）
-# CONFIG_PACKAGE_cups is not set
+# ============================================================
+# CUPS 打印系统
+# ============================================================
+CONFIG_PACKAGE_cups=y
+# 跳过 cups-bjnp（Canon 打印机驱动，GCC 13 编译有问题）
 # CONFIG_PACKAGE_cups-bjnp is not set
+# 跳过 cups-filters（依赖 libcupsfilters，编译有问题）
 # CONFIG_PACKAGE_cups-filters is not set
-# CONFIG_PACKAGE_ghostscript is not set
-# CONFIG_PACKAGE_gutenprint is not set
+CONFIG_PACKAGE_ghostscript=y
+CONFIG_PACKAGE_gutenprint=y
 # CONFIG_PACKAGE_luci-app-cupsd is not set
-# CONFIG_PACKAGE_avahi-dbus-daemon is not set
-# CONFIG_PACKAGE_dbus is not set
-# CONFIG_PACKAGE_kmod-usb-printer is not set
-# CONFIG_PACKAGE_hplip is not set
-# CONFIG_PACKAGE_libcups is not set
-# CONFIG_PACKAGE_libcupsimage is not set
-# CONFIG_PACKAGE_liblcms2 is not set
-# CONFIG_PACKAGE_libpng is not set
-# CONFIG_PACKAGE_libjpeg is not set
+
+# 打印机发现服务
+CONFIG_PACKAGE_avahi-dbus-daemon=y
+CONFIG_PACKAGE_dbus=y
+
+# USB 打印机内核支持
+CONFIG_PACKAGE_kmod-usb-printer=y
+CONFIG_PACKAGE_hplip=y
+CONFIG_PACKAGE_libcups=y
+CONFIG_PACKAGE_libcupsimage=y
+CONFIG_PACKAGE_liblcms2=y
+CONFIG_PACKAGE_libpng=y
+CONFIG_PACKAGE_libjpeg=y
