@@ -81,8 +81,10 @@ jobs:
         # ===== smpackage 源 =====
         ./scripts/feeds install -p smpackage cups
         ./scripts/feeds install -p smpackage libcupsimage
-        ./scripts/feeds install -p smpackage cups-filters
-        ./scripts/feeds install -p smpackage luci-app-cupsd
+        # 不需要 luci-app-cupsd，使用 CUPS 自带 631 端口管理
+        # ./scripts/feeds install -p smpackage luci-app-cupsd
+        # 跳过 cups-filters（依赖 libcupsfilters，编译有问题）
+        # ./scripts/feeds install -p smpackage cups-filters
         ./scripts/feeds install -p smpackage luci-app-ssr-plus
         ./scripts/feeds install -p smpackage luci-i18n-ssr-plus-zh-cn
         ./scripts/feeds install -p smpackage xray-core
@@ -95,9 +97,10 @@ jobs:
         ./scripts/feeds install -p smpackage luci-i18n-ksmbd-zh-cn
 
         # ===== printing 源（tobiaswaldvogel）=====
+        # 只跳过 cups-bjnp（Canon 打印机驱动，编译有问题）
         ./scripts/feeds install -p printing ghostscript
         ./scripts/feeds install -p printing gutenprint
-        ./scripts/feeds install -p printing cups-bjnp
+        # ./scripts/feeds install -p printing cups-bjnp
         ./scripts/feeds install -p printing lcms2
 
         # ===== hplipfeed 源（woniuzfb）=====
