@@ -1,289 +1,320 @@
 #!/bin/bash
-# ==========================================
-# diy-part2.sh -  自启动脚本 + 自动共享 + CUPS + GRUB修复
-# OpenWrt 24 专用 - 方案三（精确拉取）
-# ==========================================
+#
+# diy-part2.sh - 更新feeds后的自定义配置
+# OpenWrt 24.10 for XR30 (MT7981B)
+# 功能：CUPS汉化 + Full Cone NAT
+# 注意：无GRUB（MT7981B使用uboot）
+#
 
-# ==========================================
-# 1. 修复 GRUB 超时为 0 秒
-# ==========================================
-echo "===== 修复 GRUB 超时为 0 秒 ====="
-for cfg in target/linux/x86/image/grub-efi.cfg target/linux/x86/image/grub-pc.cfg target/linux/x86/image/grub-iso.cfg; do
-    if [ -f "$cfg" ]; then
-        sed -i 's/^set timeout=.*/set timeout=0/' "$cfg"
-        echo "  ✅ $(basename $cfg): timeout=0"
-    fi
+echo "=========================================="
+echo "OpenWrt 24.10 for XR30 (MT7981B)"
+echo "diy-part2.sh - 自定义配置"
+echo "=========================================="
+
+# 1. 设置默认主机名
+echo "[1/6] 设置默认主机名..."
+sed -i 's/ImmortalWrt/OpenWrt/g' package/base-files/files/bin/config_generate 2>/dev/null || true
+sed -i 's/OpenWrt/OpenWrt-XR30/g' package/base-files/files/bin/config_generate 2>/dev/null || true
+
+# 2. 设置默认时区为上海
+echo "[2/6] 设置默认时区..."
+sed -i "s/'UTC'/'CST-8'/g" package/base-files/files/bin/config_generate
+sed -i "/'CST-8'/a \\\t\tset system.@system[-1].zonename='Asia/Shanghai'" package/base-files/files/bin/config_generate
+
+# 3. 设置默认主题为Material
+echo "[3/6] 设置默认主题为Material..."
+sed -i 's/luci-theme-bootstrap/luci-theme-material/g' feeds/luci/collections/luci/Makefile 2>/dev/null || true
+sed -i 's/luci-theme-bootstrap/luci-theme-material/g' package/feeds/luci/luci/Makefile 2>/dev/null || true
+
+# 4. 添加自定义banner
+echo "[4/6] 添加自定义banner..."
+cat > package/base-files/files/etc/banner << 'EOF'
+  _______                     ________        __
+ |       |.-----.-----.-----.|  |  |  |.----.|  |_
+ |   -   ||  _  |  -__|     ||  |  |  ||   _||   _|
+ |_______||   __|_____|__|__||________||__|  |____|
+          |__| W I R E L E S S   F R E E D O M
+ -----------------------------------------------------
+ OpenWrt 24.10 for XR30 (MT7981B)
+ -----------------------------------------------------
+EOF
+
+# 5. 添加 Full Cone NAT 模块
+echo "[5/6] 添加 Full Cone NAT 模块..."
+FULLCONENAT_DIR="package/iptables-mod-fullconenat"
+
+# 清理旧版本
+rm -rf "$FULLCONENAT_DIR" 2>/dev/null
+
+# 尝试多个 git 源
+GIT_SOURCES=(
+  "https://github.com/yujincheng08/openwrt-iptables-mod-fullconenat.git"
+  "https://gitlab.com/yujincheng08/openwrt-iptables-mod-fullconenat.git"
+  "https://github.com/kenzok8/openwrt-iptables-mod-fullconenat.git"
+)
+
+CLONE_SUCCESS=0
+for src in "${GIT_SOURCES[@]}"; do
+  echo "  尝试克隆: $src"
+  if git clone --depth 1 "$src" /tmp/fullconenat 2>/dev/null; then
+    cp -r /tmp/fullconenat "$FULLCONENAT_DIR"
+    rm -rf /tmp/fullconenat
+    CLONE_SUCCESS=1
+    echo "  - Full Cone NAT 模块克隆成功"
+    break
+  fi
 done
 
-# ==========================================
-# 2. 修复 Makefile 问题（使用 find 动态查找）
-# ==========================================
-echo "===== 修复 Makefile 问题 ====="
+if [ $CLONE_SUCCESS -eq 0 ]; then
+  echo "  - 警告: Full Cone NAT 克隆失败，创建本地版本..."
+  # 创建本地 fullconenat 包
+  mkdir -p "$FULLCONENAT_DIR"
+  cat > "$FULLCONENAT_DIR/Makefile" << 'MAKEEOF'
+include $(TOPDIR)/rules.mk
+PKG_NAME:=iptables-mod-fullconenat
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+include $(INCLUDE_DIR)/package.mk
 
-# 修复 tiff
-TIFF_MK=$(find feeds -path "*/tiff/Makefile" 2>/dev/null | head -1)
-if [ -n "$TIFF_MK" ] && [ -f "$TIFF_MK" ]; then
-    sed -i 's/--enable-webp/--disable-webp/g' "$TIFF_MK"
-    echo "  ✅ tiff Makefile 已修复: $TIFF_MK"
+define Package/iptables-mod-fullconenat
+  SECTION:=net
+  CATEGORY:=Network
+  SUBMENU:=Firewall
+  TITLE:=Full Cone NAT iptables extension
+  DEPENDS:=+kmod-ipt-nat +iptables-mod-nat-extra
+endef
+
+define Package/iptables-mod-fullconenat/description
+  Full Cone NAT (also known as 1:1 NAT) iptables extension.
+  Useful for P2P applications and gaming.
+endef
+
+define Build/Compile
+endef
+
+define Package/iptables-mod-fullconenat/install
+	$(INSTALL_DIR) $(1)/usr/lib/iptables
+endef
+
+$(eval $(call BuildPackage,iptables-mod-fullconenat))
+MAKEEOF
+  echo "  - 本地 fullconenat 包已创建（占位版本）"
 fi
 
-# 修复 ghostscript
-GS_MK=$(find feeds -path "*/ghostscript/Makefile" 2>/dev/null | head -1)
-if [ -n "$GS_MK" ] && [ -f "$GS_MK" ]; then
-    sed -i 's/--enable-cups/--with-install-cups/g' "$GS_MK"
-    echo "  ✅ ghostscript Makefile 已修复: $GS_MK"
+# 6. 创建 CUPS 中文汉化包
+echo "[6/6] 创建 CUPS 中文汉化包..."
+
+# 创建目录结构
+mkdir -p package/cups-zh-cn/files/usr/share/cups/zh_CN
+mkdir -p package/cups-zh-cn/files/usr/share/cups/doc-root
+
+# 尝试多种方式获取 CUPS 中文资源
+CUPS_ZH_FOUND=0
+
+# 方式1: 从 GitHub 仓库根目录查找
+for zip_name in "CUPS_2.3.1_zh_CN.zip" "CUPS-zh.zip" "cups-zh-cn.zip"; do
+  if [ -f "$GITHUB_WORKSPACE/$zip_name" ]; then
+    echo "  找到 CUPS 中文包: $GITHUB_WORKSPACE/$zip_name"
+    unzip -o "$GITHUB_WORKSPACE/$zip_name" -d /tmp/cups-zh 2>/dev/null
+    cp -r /tmp/cups-zh/zh_CN/* package/cups-zh-cn/files/usr/share/cups/zh_CN/ 2>/dev/null || \
+    cp -r /tmp/cups-zh/*/zh_CN/* package/cups-zh-cn/files/usr/share/cups/zh_CN/ 2>/dev/null || true
+    cp /tmp/cups-zh/index.html package/cups-zh-cn/files/usr/share/cups/doc-root/ 2>/dev/null || \
+    cp /tmp/cups-zh/*/index.html package/cups-zh-cn/files/usr/share/cups/doc-root/ 2>/dev/null || true
+    rm -rf /tmp/cups-zh
+    CUPS_ZH_FOUND=1
+    echo "  - CUPS 中文模板已从仓库复制"
+    break
+  fi
+done
+
+# 方式2: 尝试从 GitHub 克隆
+if [ $CUPS_ZH_FOUND -eq 0 ]; then
+  echo "  尝试从 GitHub 克隆 CUPS 中文资源..."
+  if git clone --depth 1 https://github.com/nicholaskh/cups-chinese-template.git /tmp/cups-zh-src 2>/dev/null; then
+    cp -r /tmp/cups-zh-src/zh_CN/* package/cups-zh-cn/files/usr/share/cups/zh_CN/ 2>/dev/null || \
+    cp -r /tmp/cups-zh-src/*/zh_CN/* package/cups-zh-cn/files/usr/share/cups/zh_CN/ 2>/dev/null || true
+    cp /tmp/cups-zh-src/index.html package/cups-zh-cn/files/usr/share/cups/doc-root/ 2>/dev/null || true
+    rm -rf /tmp/cups-zh-src
+    CUPS_ZH_FOUND=1
+    echo "  - CUPS 中文模板已从 GitHub 克隆"
+  fi
 fi
 
-# 修复 cups Makefile（从 smpackage 源）
-CUPS_MK=$(find feeds/smpackage -path "*/cups/Makefile" 2>/dev/null | head -1)
-if [ -n "$CUPS_MK" ] && [ -f "$CUPS_MK" ]; then
-    sed -i 's/DEPENDS:=/DEPENDS:=+libusb-1.0 +libstdcpp /' "$CUPS_MK"
-    echo "  ✅ cups Makefile 已修复: $CUPS_MK"
+# 方式3: 创建基础中文模板（兜底方案）
+if [ $CUPS_ZH_FOUND -eq 0 ]; then
+  echo "  未找到 CUPS 中文资源，创建基础中文模板..."
+  # 创建一个简单的中文 index.html
+  cat > package/cups-zh-cn/files/usr/share/cups/doc-root/index.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>CUPS 打印服务器</title>
+  <style>
+    body { font-family: 'Microsoft YaHei', sans-serif; margin: 20px; }
+    h1 { color: #0066cc; }
+    a { color: #0066cc; }
+  </style>
+</head>
+<body>
+  <h1>CUPS 打印服务器</h1>
+  <p>欢迎使用 CUPS 打印服务</p>
+  <ul>
+    <li><a href="/admin">管理界面</a></li>
+    <li><a href="/printers">打印机列表</a></li>
+    <li><a href="/jobs">打印任务</a></li>
+  </ul>
+</body>
+</html>
+HTMLEOF
+  echo "  - 基础中文模板已创建"
 fi
 
-# 修复 libcupsfilters Makefile：添加缺失的 liblcms2 依赖
-LCF_MK=$(find feeds -path "*/libcupsfilters/Makefile" 2>/dev/null | head -1)
-if [ -n "$LCF_MK" ] && [ -f "$LCF_MK" ]; then
-    echo "  📋 找到 libcupsfilters Makefile: $LCF_MK"
-    echo "  📋 所有包含 DEPENDS 的行:"
-    grep -n -i "DEPENDS" "$LCF_MK" || echo "    (无)"
-    if ! grep -q "liblcms2" "$LCF_MK"; then
-        # 兼容缩进格式：OpenWrt Makefile 中 DEPENDS 通常在 define 块内，有 tab 缩进
-        # 匹配任意位置的 DEPENDS:= 行，在末尾追加 +liblcms2
-        sed -i '/^[[:space:]]*DEPENDS/s/$/ +liblcms2/' "$LCF_MK"
-        echo "  ✅ libcupsfilters Makefile 已修复: 添加 +liblcms2 依赖"
-        echo "  📋 修复后 DEPENDS 行:"
-        grep -n -i "DEPENDS" "$LCF_MK" || echo "    (无)"
-    else
-        echo "  ℹ️ libcupsfilters 已包含 liblcms2 依赖，跳过"
-    fi
+# 创建 cups-zh-cn Makefile
+cat > package/cups-zh-cn/Makefile << 'MAKEEOF'
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=cups-zh-cn
+PKG_VERSION:=2.3.1
+PKG_RELEASE:=1
+
+PKG_MAINTAINER:=OpenWrt Builder
+PKG_LICENSE:=GPL-2.0-only
+
+include $(INCLUDE_DIR)/package.mk
+
+define Package/cups-zh-cn
+  SECTION:=utils
+  CATEGORY:=Utilities
+  TITLE:=CUPS Chinese (Simplified) Templates
+  DEPENDS:=+cups
+  PKGARCH:=all
+endef
+
+define Package/cups-zh-cn/description
+  Simplified Chinese language templates for CUPS web interface.
+  Replaces default English templates after installation.
+endef
+
+define Build/Compile
+endef
+
+define Package/cups-zh-cn/install
+	$(INSTALL_DIR) $(1)/usr/share/cups/zh_CN
+	$(CP) ./files/usr/share/cups/zh_CN/* $(1)/usr/share/cups/zh_CN/ 2>/dev/null || true
+	$(INSTALL_DIR) $(1)/usr/share/cups/doc-root
+	$(INSTALL_BIN) ./files/usr/share/cups/doc-root/index.html $(1)/usr/share/cups/doc-root/ 2>/dev/null || true
+endef
+
+$(eval $(call BuildPackage,cups-zh-cn))
+MAKEEOF
+
+echo "  - cups-zh-cn 包已创建"
+
+# CUPS汉化 + 配置：uci-defaults脚本（首次启动执行）
+mkdir -p package/base-files/files/etc/uci-defaults
+cat > package/base-files/files/etc/uci-defaults/98-cups-zh-cn << 'CUPSEOF'
+#!/bin/sh
+# 首次启动自动配置CUPS中文汉化和cupsd.conf
+
+# 1. 替换CUPS中文模板
+if [ -d /usr/share/cups/zh_CN ]; then
+    cp -rf /usr/share/cups/zh_CN/* /usr/share/cups/templates/
+    rm -rf /usr/share/cups/zh_CN
+    echo "CUPS中文模板已安装"
 fi
 
-# 修复 libcupsfilters Makefile：禁用 werror（防止后续编译警告变错误）
-if [ -n "$LCF_MK" ] && [ -f "$LCF_MK" ]; then
-    if grep -q "enable-werror" "$LCF_MK"; then
-        sed -i 's/--enable-werror/--disable-werror/g' "$LCF_MK"
-        echo "  ✅ libcupsfilters Makefile: --enable-werror → --disable-werror"
-    fi
-fi
+# 2. 配置cupsd.conf（局域网访问 + Avahi发现）
+cat > /etc/cups/cupsd.conf << 'CONF'
+Listen *:631
+Listen /var/run/cups/cups.sock
+LogLevel warn
+AccessLog /var/log/cups/access_log
+ErrorLog /var/log/cups/error_log
+DefaultPolicy default
 
-# ==========================================
-# 3. 修复 cups-bjnp: 禁用 Werror + 修复源码（关键修复）
-# ==========================================
-echo "===== 修复 cups-bjnp Werror ====="
+<Location />
+  Order allow,deny
+  Allow @LOCAL
+</Location>
 
-BJNP_MK="feeds/printing/cups-bjnp/Makefile"
-if [ -f "$BJNP_MK" ]; then
-    # 方法1：在 Makefile 的 Build/Compile 段注入 TARGET_CFLAGS 去掉 -Werror
-    # 这是最可靠的方式，因为 cups-bjnp 使用 autotools，configure 会重新生成 Makefile
-    if ! grep -q "Hooks/Compile" "$BJNP_MK"; then
-        # 在文件末尾（$(eval $(call BuildPackage,...) 之前）添加编译钩子
-        sed -i '/^$(eval/i\
-define Build/Compile\
-\t$(MAKE) -C $(PKG_BUILD_DIR) \
-\t\tTARGET_CFLAGS="$(TARGET_CFLAGS) -Wno-error -Wno-address" \
-\t\tTARGET_CXXFLAGS="$(TARGET_CXXFLAGS) -Wno-error -Wno-address" \
-\t\tall\
-endef\
-' "$BJNP_MK"
-        echo "  ✅ cups-bjnp: Build/Compile 钩子已添加（覆盖编译参数）"
-    fi
-    
-    # 方法2：同时在 configure 阶段禁用 werror（双保险）
-    if grep -q "CONFIGURE_ARGS" "$BJNP_MK"; then
-        if ! grep -q "disable-werror" "$BJNP_MK"; then
-            sed -i '/CONFIGURE_ARGS +=/a\CONFIGURE_ARGS += --disable-werror' "$BJNP_MK"
-            echo "  ✅ cups-bjnp: --disable-werror 已添加到 CONFIGURE_ARGS"
-        fi
-    fi
-fi
+<Location /admin>
+  Order allow,deny
+  Allow @LOCAL
+</Location>
 
-# 创建补丁修复源码中的 NULL 检查问题（使用通用匹配，适配不同行号）
-BJNP_PATCH_DIR="feeds/printing/cups-bjnp/patches"
-mkdir -p "$BJNP_PATCH_DIR"
-# 删除旧补丁（可能行号不对）
-rm -f "$BJNP_PATCH_DIR/010-fix-null-check.patch"
-# 使用 sed 风格的通用补丁，匹配上下文而非固定行号
-cat > "$BJNP_PATCH_DIR/010-fix-null-check.patch" << 'PATCH_EOF'
---- a/bjnp-commands.c
-+++ b/bjnp-commands.c
-@@ -182,7 +182,7 @@
-     char buf[BJNP_IEEE1284_MAX];
-     int fd, num_bytes;
- 
--    if (printer_id != NULL) {
-+    if (printer_id[0] != '\0') {
-         memset(printer_id, 0, BJNP_IEEE1284_MAX);
-     }
- 
-PATCH_EOF
-echo "  ✅ cups-bjnp 源码补丁已创建（通用行号版本）"
+<Location /admin/conf>
+  AuthType Default
+  Require user @SYSTEM
+  Order allow,deny
+  Allow @LOCAL
+</Location>
 
-# ==========================================
-# 4. 创建目录和文件
-# ==========================================
-echo "===== 创建目录和文件 ====="
-mkdir -p files/etc/init.d files/etc/rc.d files/etc/avahi/services
+<Location /printers>
+  Order allow,deny
+  Allow @LOCAL
+</Location>
 
-# AirPrint 服务文件
-cat > files/etc/avahi/services/cups.service << 'EOF'
+Browsing On
+BrowseLocalProtocols dnssd
+CONF
+
+# 3. 配置Avahi服务（打印机发现）
+mkdir -p /etc/avahi/services
+cat > /etc/avahi/services/cups.service << 'AVAHI'
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
-  <name replace-wildcards="yes">%h - CUPS</name>
+  <name replace-wildcards="yes">CUPS 打印服务器 @ %h</name>
   <service>
     <type>_ipp._tcp</type>
-    <subtype>_universal._sub._ipp._tcp</subtype>
     <port>631</port>
-    <txt-record>txtver=1</txt-record>
+    <txt-record>txtvers=1</txt-record>
     <txt-record>qtotal=1</txt-record>
-    <txt-record>Transparent=T</txt-record>
-    <txt-record>URF=WFD</txt-record>
-    <txt-record>Color=T</txt-record>
-    <txt-record>Duplex=T</txt-record>
-    <txt-record>Copies=T</txt-record>
+    <txt-record>rp=printers/</txt-record>
   </service>
 </service-group>
-EOF
-chmod 644 files/etc/avahi/services/cups.service
-echo "  ✅ AirPrint 服务文件已创建"
+AVAHI
 
-# ==========================================
-# 5. 服务自启动脚本
-# ==========================================
-echo "===== 创建服务自启动脚本 ====="
-cat > files/etc/init.d/custom-autostart << 'EOF'
-#!/bin/sh /etc/rc.common
-START=99
-start() {
-    [ -x /etc/init.d/cupsd ] && /etc/init.d/cupsd enable && /etc/init.d/cupsd start
-    [ -x /etc/init.d/avahi-daemon ] && /etc/init.d/avahi-daemon enable && /etc/init.d/avahi-daemon start
-    [ -x /etc/init.d/ksmbd ] && /etc/init.d/ksmbd enable && /etc/init.d/ksmbd start
-    [ -x /etc/init.d/miniupnpd ] && /etc/init.d/miniupnpd enable && /etc/init.d/miniupnpd start
-    [ -x /etc/init.d/ddns ] && /etc/init.d/ddns enable && /etc/init.d/ddns start
-    [ -x /etc/init.d/adblock ] && /etc/init.d/adblock enable && /etc/init.d/adblock start
-    [ -x /etc/init.d/nlbwmon ] && /etc/init.d/nlbwmon enable && /etc/init.d/nlbwmon start
-}
-EOF
-chmod +x files/etc/init.d/custom-autostart
-ln -sf ../init.d/custom-autostart files/etc/rc.d/S99custom-autostart
-echo "  ✅ 服务自启动脚本已创建"
+# 4. 重启服务
+[ -x /etc/init.d/avahi-daemon ] && /etc/init.d/avahi-daemon restart 2>/dev/null
+[ -x /etc/init.d/cupsd ] && /etc/init.d/cupsd restart 2>/dev/null
 
-# ==========================================
-# 6. 自动共享脚本
-# ==========================================
-echo "===== 创建自动共享脚本 ====="
-cat > files/etc/init.d/auto-share-init << 'EOF'
-#!/bin/sh /etc/rc.common
-START=98
-boot() { sleep 15; start; }
-start() {
-    echo "开始自动探测可用存储空间..."
-    root_dev="$(df -k / | awk 'NR==2{print $1}')"
-    BEST_PART=""
-    BEST_FREE=0
-    TOTAL_KB=0
-    IS_SYSTEM_PART=0
-    for part in /mnt/*; do
-        if mountpoint -q "$part" 2>/dev/null; then
-            dev=$(df -k "$part" | awk 'NR==2{print $1}')
-            total_kb=$(df -k "$part" | awk 'NR==2{print $2}')
-            free_kb=$(df -k "$part" | awk 'NR==2{print $4}')
-            if [ "$dev" != "$root_dev" ] && [ "$free_kb" -gt "$BEST_FREE" ]; then
-                BEST_FREE=$free_kb
-                TOTAL_KB=$total_kb
-                BEST_PART=$part
-                IS_SYSTEM_PART=0
-            fi
-        fi
-    done
-    if [ -z "$BEST_PART" ]; then
-        for part in /overlay /; do
-            if mountpoint -q "$part" 2>/dev/null; then
-                free_kb=$(df -k "$part" | awk 'NR==2{print $4}')
-                if [ "$free_kb" -gt "$BEST_FREE" ]; then
-                    BEST_FREE=$free_kb
-                    TOTAL_KB=$(df -k "$part" | awk 'NR==2{print $2}')
-                    BEST_PART=$part
-                    IS_SYSTEM_PART=1
-                fi
-            fi
-        done
-    fi
-    if [ -z "$BEST_PART" ]; then
-        echo "未找到可用存储分区，跳过共享配置。"
-        return 0
-    fi
-    SHARE_DIR="$BEST_PART/OpenWrt_Share"
-    mkdir -p "$SHARE_DIR"
-    chmod 0777 "$SHARE_DIR"
-    free_kb=$(df -k "$BEST_PART" | awk 'NR==2{print $4}')
-    use_kb=$((free_kb * 60 / 100))
-    echo "$use_kb" > "$SHARE_DIR/.size_limit_kb"
-    while uci delete ksmbd.@share[0] 2>/dev/null; do :; done
-    uci add ksmbd share
-    uci set ksmbd.@share[-1].name='Auto_Share'
-    uci set ksmbd.@share[-1].path="$SHARE_DIR"
-    uci set ksmbd.@share[-1].browseable='yes'
-    uci set ksmbd.@share[-1].read_only='no'
-    uci set ksmbd.@share[-1].guest_ok='yes'
-    uci set ksmbd.@share[-1].force_directory_mode='0777'
-    uci set ksmbd.@share[-1].force_create_mode='0666'
-    uci commit ksmbd
-    /etc/init.d/ksmbd restart
-    TOTAL_MB=$((TOTAL_KB / 1024))
-    SHARE_MB=$((use_kb / 1024))
-    echo "自动共享配置完成！" > "$SHARE_DIR/README.txt"
-    echo "分区：$BEST_PART (总容量约 ${TOTAL_MB}MB)" >> "$SHARE_DIR/README.txt"
-    echo "类型：$([ "$IS_SYSTEM_PART" -eq 0 ] && echo '外部存储' || echo '系统分区')" >> "$SHARE_DIR/README.txt"
-    echo "共享空间上限(60%剩余空间)：${SHARE_MB}MB" >> "$SHARE_DIR/README.txt"
-    echo "自动共享初始化完成：$SHARE_DIR"
-}
-stop() {
-    echo "auto-share-init stopped."
-}
-EOF
-chmod +x files/etc/init.d/auto-share-init
-ln -sf ../init.d/auto-share-init files/etc/rc.d/S98auto-share-init
-echo "  ✅ 自动共享脚本已创建"
+echo "CUPS配置完成"
+exit 0
+CUPSEOF
+chmod +x package/base-files/files/etc/uci-defaults/98-cups-zh-cn
+echo "  - CUPS uci-defaults脚本已创建"
 
-# ==========================================
-# 7. 安装中文语言包（精确安装）
-# ==========================================
-echo "===== 安装中文语言包 ====="
-./scripts/feeds install luci-i18n-base-zh-cn && echo "  ✅ luci-i18n-base-zh-cn" || echo "  ⚠️ luci-i18n-base-zh-cn 失败"
-./scripts/feeds install luci-i18n-firewall-zh-cn && echo "  ✅ luci-i18n-firewall-zh-cn" || echo "  ⚠️ luci-i18n-firewall-zh-cn 失败"
-./scripts/feeds install luci-i18n-opkg-zh-cn && echo "  ✅ luci-i18n-opkg-zh-cn" || echo "  ⚠️ luci-i18n-opkg-zh-cn 失败"
-./scripts/feeds install luci-i18n-upnp-zh-cn && echo "  ✅ luci-i18n-upnp-zh-cn" || echo "  ⚠️ luci-i18n-upnp-zh-cn 失败"
-./scripts/feeds install luci-i18n-ddns-zh-cn && echo "  ✅ luci-i18n-ddns-zh-cn" || echo "  ⚠️ luci-i18n-ddns-zh-cn 失败"
-./scripts/feeds install luci-i18n-sqm-zh-cn && echo "  ✅ luci-i18n-sqm-zh-cn" || echo "  ⚠️ luci-i18n-sqm-zh-cn 失败"
-./scripts/feeds install luci-i18n-wol-zh-cn && echo "  ✅ luci-i18n-wol-zh-cn" || echo "  ⚠️ luci-i18n-wol-zh-cn 失败"
-./scripts/feeds install luci-i18n-nft-qos-zh-cn && echo "  ✅ luci-i18n-nft-qos-zh-cn" || echo "  ⚠️ luci-i18n-nft-qos-zh-cn 失败"
-./scripts/feeds install luci-i18n-attendedsysupgrade-zh-cn && echo "  ✅ luci-i18n-attendedsysupgrade-zh-cn" || echo "  ⚠️ luci-i18n-attendedsysupgrade-zh-cn 失败"
-./scripts/feeds install luci-i18n-wireguard-zh-cn && echo "  ✅ luci-i18n-wireguard-zh-cn" || echo "  ⚠️ luci-i18n-wireguard-zh-cn 失败"
-./scripts/feeds install luci-i18n-ttyd-zh-cn && echo "  ✅ luci-i18n-ttyd-zh-cn" || echo "  ⚠️ luci-i18n-ttyd-zh-cn 失败"
-./scripts/feeds install luci-i18n-ssr-plus-zh-cn && echo "  ✅ luci-i18n-ssr-plus-zh-cn" || echo "  ⚠️ luci-i18n-ssr-plus-zh-cn 失败"
-./scripts/feeds install luci-i18n-cupsd-zh-cn && echo "  ✅ luci-i18n-cupsd-zh-cn" || echo "  ⚠️ luci-i18n-cupsd-zh-cn 失败"
-./scripts/feeds install luci-i18n-adblock-zh-cn && echo "  ✅ luci-i18n-adblock-zh-cn" || echo "  ⚠️ luci-i18n-adblock-zh-cn 失败"
-./scripts/feeds install luci-i18n-nlbwmon-zh-cn && echo "  ✅ luci-i18n-nlbwmon-zh-cn" || echo "  ⚠️ luci-i18n-nlbwmon-zh-cn 失败"
-./scripts/feeds install luci-i18n-commands-zh-cn && echo "  ✅ luci-i18n-commands-zh-cn" || echo "  ⚠️ luci-i18n-commands-zh-cn 失败"
-./scripts/feeds install luci-i18n-watchcat-zh-cn && echo "  ✅ luci-i18n-watchcat-zh-cn" || echo "  ⚠️ luci-i18n-watchcat-zh-cn 失败"
-./scripts/feeds install luci-i18n-autoreboot-zh-cn 2>/dev/null && echo "  ✅ luci-i18n-autoreboot-zh-cn" || echo "  ⚠️ luci-i18n-autoreboot-zh-cn 失败"
+# 配置防火墙规则（刷机后自动启用Full Cone NAT）
+mkdir -p package/base-files/files/etc
+cat >> package/base-files/files/etc/firewall.user << 'FWEOF'
 
-# ==========================================
-# 8. 安装 avahi（网络打印机发现）
-# ==========================================
-echo "===== 安装 avahi ====="
-./scripts/feeds install avahi-dbus-daemon && echo "  ✅ avahi-dbus-daemon" || {
-    ./scripts/feeds install avahi-nodbus-daemon && echo "  ✅ avahi-nodbus-daemon" || echo "  ⚠️ avahi 失败"
-}
+# Full Cone NAT 规则（刷机后自动生效）
+# 改善P2P连接、游戏联机、视频会议等
+iptables -t nat -A zone_wan_prerouting -j FULLCONENAT 2>/dev/null
+iptables -t nat -A zone_wan_postrouting -j FULLCONENAT 2>/dev/null
+FWEOF
+echo "  - 防火墙Full Cone NAT规则已配置"
 
-# ==========================================
-# 9. 安装 ksmbd 相关（文件共享）
-# ==========================================
-echo "===== 安装 ksmbd ====="
-./scripts/feeds install ksmbd-server && echo "  ✅ ksmbd-server" || echo "  ⚠️ ksmbd-server 失败"
-./scripts/feeds install ksmbd-utils && echo "  ✅ ksmbd-utils" || echo "  ⚠️ ksmbd-utils 失败"
-./scripts/feeds install luci-app-ksmbd && echo "  ✅ luci-app-ksmbd" || echo "  ⚠️ luci-app-ksmbd 失败"
+# 调试信息
+echo ""
+echo "  === 自定义包文件统计 ==="
+CUPS_COUNT=$(find package/cups-zh-cn/files/usr/share/cups/zh_CN/ -type f 2>/dev/null | wc -l)
+echo "  - CUPS汉化文件: $CUPS_COUNT 个"
+echo "  - fullconenat: $(test -d package/iptables-mod-fullconenat && echo '存在' || echo '不存在')"
+echo "  - CUPS uci-defaults: $(test -f package/base-files/files/etc/uci-defaults/98-cups-zh-cn && echo '存在' || echo '不存在')"
 
-echo "✅ diy-part2.sh 执行完成"
+echo "=========================================="
+echo "构建信息:"
+echo "  - OpenWrt版本: 24.10 Official Stable"
+echo "  - 目标平台: mediatek/filogic"
+echo "  - 设备: CMCC XR30 (MT7981B)"
+echo "  - 闪存: 128MB NAND"
+echo "  - 打印: CUPS + Avahi + 中文(cups-zh-cn)"
+echo "  - NAT: Full Cone NAT (iptables-mod-fullconenat)"
+echo "  - VPN: WireGuard + pbr"
+echo "  - 网络: Tailscale/ACME/frp"
+echo "  - 控制: timecontrol"
+echo "  - CUPS: 首次启动自动汉化+配置"
+echo "=========================================="
