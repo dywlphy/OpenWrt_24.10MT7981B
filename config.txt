@@ -296,9 +296,9 @@ CONFIG_PACKAGE_luci-i18n-pbr-zh-cn=y
 CONFIG_PACKAGE_frp=y
 
 # 彻底禁用旧版iptables全锥（必关，防编译报错）
-CONFIG_PACKAGE_kmod-fullconenat is not set
-CONFIG_PACKAGE_iptables-mod-fullconenat is not set
-CONFIG_PACKAGE_luci-app-fullconenat is not set
+# CONFIG_PACKAGE_kmod-fullconenat is not set
+# CONFIG_PACKAGE_iptables-mod-fullconenat is not set
+# CONFIG_PACKAGE_luci-app-fullconenat is not set
 # IPv6 NAT —— 关闭！24.10 fw4 不兼容 iptables 版
 # CONFIG_PACKAGE_kmod-ipt-nat6 is not set
 
