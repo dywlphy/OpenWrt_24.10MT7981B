@@ -1,365 +1,226 @@
-# ============================================================
-# OpenWrt 官方 24.10 稳定版编译
-# 方案三：精确拉取，最小 污染
-# 核心：CUPS + SSR-Plus + ksmbd + 中文界面
-# ============================================================
-name: Build Official OpenWrt
+name: Build OpenWrt 24.10 for XR30
 
 on:
+  repository_dispatch:
   workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
 
 env:
-  UPLOAD_BIN_DIR: false
-  UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: true
+  REPO_URL: https://github.com/openwrt/openwrt
+  REPO_BRANCH: openwrt-24.10
+  TZ: Asia/Shanghai
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 360
 
     steps:
     - name: Checkout
       uses: actions/checkout@main
 
+    # 安装编译依赖
     - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3 python3-pip python3-ply python3-setuptools rsync swig unzip zlib1g-dev file wget cpio rsync unzip file libelf-dev libfuse-dev libpam0g-dev libzstd-dev cups libcups2-dev
-        sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone Asia/Shanghai
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential clang flex bison g++ gawk gcc-multilib gettext \
+          git libncurses-dev libssl-dev python3-pip python3-setuptools \
+          rsync swig unzip zlib1g-dev file wget xsltproc \
+          ecj java-propose-classpath libelf-dev libfuse-dev libjson-c-dev \
+          liblzo2-dev liblzma-dev libzstd-dev quilt u-boot-tools \
+          python3-dev python3-pyelftools python3-yaml ccache \
+          aria2 curl subversion \
+          libdbus-1-dev libexpat1-dev libglib2.0-dev \
+          bash-completion
+        sudo apt-get clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
 
-    - name: Clone OpenWrt 24.10
+    # 克隆OpenWrt源码
+    - name: Clone source code
+      working-directory: /workdir
       run: |
-        git clone https://github.com/openwrt/openwrt -b openwrt-24.10 openwrt
+        git clone -b ${{ env.REPO_BRANCH }} --single-branch --depth 1 ${{ env.REPO_URL }} openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-    - name: Load custom feeds and config
-      run: |
-        [ -f config.txt ] && cp config.txt openwrt/.config
-        [ -f diy-part1.sh ] && cp diy-part1.sh openwrt/
-        [ -f diy-part2.sh ] && cp diy-part2.sh openwrt/
-        sed -i 's/\r$//' openwrt/diy-part1.sh openwrt/diy-part2.sh 2>/dev/null || true
-        chmod +x openwrt/diy-part1.sh openwrt/diy-part2.sh 2>/dev/null || true
-        cd openwrt
-        ./diy-part1.sh
-        echo "--- feeds.conf 内容 ---"
-        cat feeds.conf
-
-    - name: Cache OpenWrt source packages (dl)
+    # 缓存下载文件
+    - name: Cache OpenWrt dl (downloads)
       uses: actions/cache@v4
       with:
-        path: openwrt/dl
-        key: openwrt-dl-${{ hashFiles('diy-part1.sh') }}
-        restore-keys: openwrt-dl-
+        path: /workdir/openwrt/dl
+        key: openwrt-dl-24.10-xr30-${{ hashFiles('diy-part1.sh') }}-${{ github.run_id }}
+        restore-keys: |
+          openwrt-dl-24.10-xr30-${{ hashFiles('diy-part1.sh') }}-
+          openwrt-dl-24.10-xr30-
 
-    - name: Cache OpenWrt build artifacts
+    # 配置第三方feeds源
+    - name: Load custom feeds
+      run: |
+        chmod +x diy-part1.sh
+        cd openwrt
+        $GITHUB_WORKSPACE/diy-part1.sh
+
+    # 缓存编译目录
+    - name: Cache OpenWrt build (staging_dir)
       uses: actions/cache@v4
       with:
         path: |
-          openwrt/staging_dir
-          openwrt/build_dir
-        key: openwrt-build-${{ hashFiles('config.txt') }}
-        restore-keys: openwrt-build-
+          /workdir/openwrt/staging_dir
+          /workdir/openwrt/build_dir
+        key: openwrt-build-24.10-xr30-${{ hashFiles('config.txt', 'diy-part2.sh') }}-${{ github.run_id }}
+        restore-keys: |
+          openwrt-build-24.10-xr30-${{ hashFiles('config.txt', 'diy-part2.sh') }}-
+          openwrt-build-24.10-xr30-
 
+    # 更新feeds
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
 
-    - name: Install feeds - official only
+    # 安装feeds
+    - name: Install feeds
+      run: cd openwrt && ./scripts/feeds install -a
+
+    # 加载自定义配置
+    - name: Load custom configuration
+      run: |
+        [ -e config.txt ] && cp config.txt openwrt/.config
+        chmod +x diy-part2.sh
+        cd openwrt
+        export GITHUB_WORKSPACE="${{ github.workspace }}"
+        $GITHUB_WORKSPACE/diy-part2.sh
+
+    # 验证CUPS汉化包是否正确创建
+    - name: Verify CUPS Chinese package
       run: |
         cd openwrt
-        ./scripts/feeds install -a -p packages
-        ./scripts/feeds install -a -p luci
-
-    - name: Install feeds - third party (precise)
-      run: |
-        cd openwrt
-
-        # ===== smpackage 源 =====
-        ./scripts/feeds install -p smpackage cups
-        ./scripts/feeds install -p smpackage libcupsimage
-        # 不需要 luci-app-cupsd，使用 CUPS 自带 631 端口管理
-        # ./scripts/feeds install -p smpackage luci-app-cupsd
-        # 跳过 cups-filters（依赖 libcupsfilters，编译有问题）
-        # ./scripts/feeds install -p smpackage cups-filters
-        ./scripts/feeds install -p smpackage luci-app-ssr-plus
-        ./scripts/feeds install -p smpackage luci-i18n-ssr-plus-zh-cn
-        ./scripts/feeds install -p smpackage xray-core
-        ./scripts/feeds install -p smpackage v2ray-geodata
-        ./scripts/feeds install -p smpackage v2ray-geosite
-        ./scripts/feeds install -p smpackage vlmcsd
-        ./scripts/feeds install -p smpackage luci-app-vlmcsd
-        ./scripts/feeds install -p smpackage autoshare-ksmbd
-        ./scripts/feeds install -p smpackage luci-app-ksmbd
-        ./scripts/feeds install -p smpackage luci-i18n-ksmbd-zh-cn
-
-        # ===== printing 源（tobiaswaldvogel）=====
-        # 只跳过 cups-bjnp（Canon 打印机驱动，编译有问题）
-        ./scripts/feeds install -p printing ghostscript
-        ./scripts/feeds install -p printing gutenprint
-        # ./scripts/feeds install -p printing cups-bjnp
-        ./scripts/feeds install -p printing lcms2
-
-        # ===== hplipfeed 源（woniuzfb）=====
-        ./scripts/feeds install -p hplipfeed hplip
-
-        # ===== immortalwrt 源 =====
-        ./scripts/feeds install -p immortalwrt luci-app-autoreboot
-
-        # ===== 官方 packages 源 =====
-        ./scripts/feeds install -p packages luci-app-adblock
-        ./scripts/feeds install -p packages luci-app-nlbwmon
-        ./scripts/feeds install -p packages luci-app-commands
-        ./scripts/feeds install -p packages luci-app-watchcat
-
-    - name: Run diy-part2.sh
-      run: |
-        cd openwrt
-        ./diy-part2.sh
-
-    - name: Remove conflicting packages
-      run: |
-        cd openwrt
-        rm -rf feeds/smpackage/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,vsftpd*,miniupnpd-iptables,wireless-regdb,curl,dbus,openssl} 2>/dev/null || true
-        rm -rf feeds/immortalwrt/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,curl,dbus,openssl,cups,cups-filters,libcups,libcupsimage} 2>/dev/null || true
-        rm -rf feeds/packages/net/onionshare-cli 2>/dev/null || true
-        rm -rf feeds/smpackage/webd 2>/dev/null || true
-        find . -name "onionshare-cli" -type d -exec rm -rf {} \; 2>/dev/null || true
-        rm -rf feeds/smpackage/samba4* 2>/dev/null || true
-        rm -rf feeds/*/net/samba4 2>/dev/null || true
-        find . -name "samba4" -type d -exec rm -rf {} \; 2>/dev/null || true
-        for idx in feeds/*.index; do
-          [ -f "$idx" ] && sed -i '/onionshare-cli/d' "$idx" || true
-        done
-        DBUS_MK="feeds/packages/utils/dbus/Makefile"
-        if [ -f "$DBUS_MK" ] && ! grep -q "Package/dbus-libs" "$DBUS_MK"; then
-          sed -i '/^define Package\/dbus$/,/^endef$/{ /DEPENDS:/ s/$/ +dbus-libs/ }' "$DBUS_MK"
-          printf '\ndefine Package/dbus-libs\n  SECTION:=libs\n  CATEGORY:=Libraries\n  DEPENDS:=+libexpat\n  TITLE:=D-Bus library\nendef\n\ndefine Package/dbus-libs/install\n\t$(INSTALL_DIR) $(1)/usr/lib\n\t$(CP) $(PKG_INSTALL_DIR)/usr/lib/libdbus-1.so* $(1)/usr/lib/\nendef\n\n$(eval $(call BuildPackage,dbus-libs))\n' >> "$DBUS_MK"
-          echo "  ✅ dbus-libs 修复已应用"
-        fi
-        rm -rf tmp/
-        echo "✅ 冲突包已清除"
-
-    - name: Run make defconfig
-      run: cd openwrt && make defconfig
-
-    - name: Force enable key packages
-      run: |
-        cd openwrt
-        enable_pkg() {
-          local pattern="$1"
-          if grep -q "^# CONFIG_PACKAGE_${pattern} is not set" .config; then
-            sed -i "s/^# CONFIG_PACKAGE_${pattern} is not set/CONFIG_PACKAGE_${pattern}=y/" .config
-            echo "  强制启用: $pattern"
-          elif grep -q "^CONFIG_PACKAGE_${pattern}=y" .config; then
-            echo "  已启用: $pattern"
-          else
-            echo "CONFIG_PACKAGE_${pattern}=y" >> .config
-            echo "  追加启用: $pattern"
-          fi
-        }
-        
-        echo "【强制启用 LuCI 核心依赖】"
-        enable_pkg "luci-base"
-        enable_pkg "luci-mod-admin-full"
-        enable_pkg "luci-mod-network"
-        enable_pkg "luci-mod-status"
-        enable_pkg "luci-mod-system"
-        enable_pkg "rpcd"
-        enable_pkg "rpcd-mod-file"
-        enable_pkg "rpcd-mod-iwinfo"
-        enable_pkg "rpcd-mod-rpcsys"
-        enable_pkg "rpcd-mod-rrdns"
-        enable_pkg "uhttpd"
-        enable_pkg "uhttpd-mod-ubus"
-        enable_pkg "cgi-io"
-        enable_pkg "ucode"
-        enable_pkg "ucode-mod-fs"
-        enable_pkg "ucode-mod-math"
-        enable_pkg "ucode-mod-nl80211"
-        enable_pkg "ucode-mod-resolv"
-        enable_pkg "ucode-mod-ubus"
-        enable_pkg "ucode-mod-uci"
-        enable_pkg "luci-theme-bootstrap"
-        
+        echo "=== cups-zh-cn 包验证 ==="
+        echo "--- Makefile ---"
+        test -f package/cups-zh-cn/Makefile && echo "OK: Makefile 存在" || echo "FAIL: Makefile 不存在"
         echo ""
-        echo "【强制启用中文语言包】"
-        enable_pkg "luci-i18n-base-zh-cn"
-        enable_pkg "luci-i18n-opkg-zh-cn"
-        enable_pkg "luci-i18n-firewall-zh-cn"
-        enable_pkg "luci-i18n-attendedsysupgrade-zh-cn"
-        enable_pkg "luci-i18n-wireguard-zh-cn"
-        enable_pkg "luci-i18n-upnp-zh-cn"
-        enable_pkg "luci-i18n-ddns-zh-cn"
-        enable_pkg "luci-i18n-sqm-zh-cn"
-        enable_pkg "luci-i18n-wol-zh-cn"
-        enable_pkg "luci-i18n-nft-qos-zh-cn"
-        enable_pkg "luci-i18n-ttyd-zh-cn"
-        enable_pkg "luci-i18n-ssr-plus-zh-cn"
-        enable_pkg "luci-i18n-cupsd-zh-cn"
-        enable_pkg "luci-i18n-adblock-zh-cn"
-        enable_pkg "luci-i18n-nlbwmon-zh-cn"
-        enable_pkg "luci-i18n-commands-zh-cn"
-        enable_pkg "luci-i18n-watchcat-zh-cn"
-        
+        echo "--- CUPS汉化文件数 ---"
+        find package/cups-zh-cn/files/usr/share/cups/zh_CN/ -type f 2>/dev/null | wc -l
         echo ""
-        echo "【强制启用打印机驱动】"
-        enable_pkg "hplip"
-        enable_pkg "gutenprint"
-        
+        echo "--- uci-defaults脚本 ---"
+        test -f package/base-files/files/etc/uci-defaults/98-cups-zh-cn && echo "OK: CUPS脚本存在" || echo "FAIL: CUPS脚本不存在"
         echo ""
-        echo "【强制启用基础依赖】"
-        enable_pkg "liblcms2"
-        enable_pkg "zlib"
-        enable_pkg "libcups"
-        enable_pkg "libcupsimage"
-        enable_pkg "libpng"
-        enable_pkg "libjpeg"
-        enable_pkg "libstdcpp"
-        enable_pkg "libusb-1-0"
-        enable_pkg "libexpat"
-        # 不强制启用 dbus，让 avahi 自动选择依赖，避免冲突
-        # enable_pkg "dbus"
-        # enable_pkg "dbus-libs"
-        enable_pkg "libdaemon"
-        enable_pkg "libiwinfo"
-        enable_pkg "kmod-usb-printer"
-        
-        echo ""
-        echo "【强制启用核心功能包】"
-        enable_pkg "cups"
-        # 跳过 cups-filters（依赖 libcupsfilters，编译有问题）
-        # enable_pkg "cups-filters"
-        # 跳过 cups-bjnp（Canon 打印机驱动，GCC 13 编译有问题）
-        # enable_pkg "cups-bjnp"
-        enable_pkg "ghostscript"
-        enable_pkg "avahi"
-        enable_pkg "avahi-dbus-daemon"
-        # 跳过 luci-app-cupsd（使用 CUPS 自带 631 端口管理）
-        # enable_pkg "luci-app-cupsd"
-        enable_pkg "ksmbd-server"
-        enable_pkg "ksmbd-utils"
-        enable_pkg "luci-app-ksmbd"
-        enable_pkg "luci-app-ssr-plus"
-        enable_pkg "luci-app-sqm"
-        enable_pkg "luci-app-upnp"
-        enable_pkg "luci-app-ddns"
-        enable_pkg "luci-app-wol"
-        enable_pkg "luci-proto-wireguard"
-        enable_pkg "vlmcsd"
-        enable_pkg "luci-app-vlmcsd"
-        enable_pkg "curl"
-        enable_pkg "libcurl"
-        enable_pkg "adblock"
-        enable_pkg "luci-app-adblock"
-        enable_pkg "nlbwmon"
-        enable_pkg "luci-app-nlbwmon"
-        enable_pkg "luci-app-commands"
-        enable_pkg "watchcat"
-        enable_pkg "luci-app-watchcat"
-        enable_pkg "luci-app-autoreboot"
-        
-        sed -i 's/^CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/' .config
-        sed -i 's/^CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS is not set/' .config
-        sed -i 's/CONFIG_GRUB_TIMEOUT=.*/CONFIG_GRUB_TIMEOUT=0/' .config
-        echo "CONFIG_GRUB_TIMEOUT=0" >> .config
-        echo "==========================="
+        echo "--- fullconenat模块 ---"
+        test -d package/iptables-mod-fullconenat && echo "OK: fullconenat存在" || echo "FAIL: fullconenat不存在"
 
-    - name: Re-run defconfig to resolve dependencies
-      run: cd openwrt && make defconfig && echo "✅ defconfig 完成"
+    # SSH调试（可选）
+    - name: SSH connection to Actions
+      uses: P3TERX/ssh2actions@v1.0.0
+      if: github.event.inputs.ssh == 'true'
 
-    - name: Download packages
-      run: cd openwrt && make download -j8 || make download -j1 V=s
+    # 清理Tailscale缓存
+    - name: Clean Go mod cache
+      run: |
+        cd openwrt
+        rm -rf dl/go-mod-cache
+        make package/tailscale/clean 2>/dev/null || true
 
-    - name: Compile OpenWRT firmware
+    # 下载源码包 + defconfig
+    - name: Download package
+      run: |
+        cd openwrt
+        make defconfig
+        # 强制禁用dnsmasq，使用dnsmasq-full（解决冲突）
+        sed -i 's/CONFIG_PACKAGE_dnsmasq=y/# CONFIG_PACKAGE_dnsmasq is not set/' .config
+        sed -i 's/CONFIG_PACKAGE_dnsmasq=m/# CONFIG_PACKAGE_dnsmasq is not set/' .config
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec rm -f {} \;
+
+    # 编译固件
+    - name: Compile the firmware
       id: compile
       run: |
         cd openwrt
-        # 清理 cups-bjnp 和 libcupsfilters 的旧构建缓存（确保修复生效）
-        rm -rf build_dir/target-x86_64_musl/cups-bjnp-*
-        rm -rf build_dir/target-x86_64_musl/libcupsfilters-*
-        echo -e "$(nproc) thread compile"
-        make -j$(nproc) 2>&1 | tee build.log
-        if [ ${PIPESTATUS[0]} -eq 0 ]; then
-            echo "Build success with -j$(nproc)"
-        else
-            echo "Build failed, extracting errors..."
-            grep -E "error:|undefined reference|cannot find -l|fatal error" build.log | tail -30
-            echo "Retrying with -j1 V=s for detailed error..."
-            make -j1 V=s 2>&1 | tee -a build.log
-            if [ ${PIPESTATUS[0]} -ne 0 ]; then
-                echo "========== BUILD FAILED =========="
-                grep -E "error:|undefined reference|cannot find -l|fatal error" build.log | tail -50
-                exit 1
-            fi
-        fi
-        
-        echo "status=success" >> $GITHUB_OUTPUT
+        make -j$(nproc) || make -j1 || make -j1 V=s | tee build.log
+        echo "status=success" >> "$GITHUB_OUTPUT"
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
-        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> "$GITHUB_ENV"
+        echo "FILE_DATE=_$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
 
-    - name: Organize files
-      id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+    # 验证编译结果
+    - name: Verify build result
+      if: steps.compile.outputs.status == 'success'
       run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
+        cd openwrt
+        echo "=== 编译出的cups相关包 ==="
+        find bin -name "*cups*" -type f 2>/dev/null || echo "未找到"
+        echo ""
+        echo "=== 固件文件 ==="
+        ls -lh bin/targets/mediatek/filogic/*.itb 2>/dev/null || ls -lh bin/targets/mediatek/filogic/*.bin 2>/dev/null || echo "未找到固件"
 
-    - name: Upload firmware to Artifacts
+    # 整理固件文件
+    - name: Organize firmware files
+      if: steps.compile.outputs.status == 'success'
+      run: |
+        cd openwrt
+        mkdir -p release
+        cp bin/targets/mediatek/filogic/*.{itb,bin,sha256sums} release/ 2>/dev/null || true
+        cp -r bin/targets/mediatek/filogic/packages release/ 2>/dev/null || true
+        echo "OpenWrt 24.10 for XR30 (MT7981B)" > release/build_info.txt
+        echo "Build Date: $(date '+%Y-%m-%d %H:%M:%S')" >> release/build_info.txt
+        echo "Target: mediatek/filogic" >> release/build_info.txt
+        echo "Device: CMCC XR30" >> release/build_info.txt
+        echo "Flash: 128MB NAND" >> release/build_info.txt
+        echo "Features: CUPS+Avahi+WireGuard+pbr+Tailscale+ACME+frp+timecontrol+FullConeNAT" >> release/build_info.txt
+
+    # 上传固件到 GitHub Release
+    - name: Upload to GitHub Release
+      if: steps.compile.outputs.status == 'success'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v24.10-xr30-${{ env.FILE_DATE }}
+        name: OpenWrt 24.10 XR30 ${{ env.FILE_DATE }}
+        body: |
+          ## OpenWrt 24.10 for XR30 (MT7981B)
+          
+          **构建时间**: ${{ env.FILE_DATE }}
+          
+          ### 设备信息
+          - 设备: 中国移动 XR30
+          - SoC: 联发科 MT7981B
+          - 闪存: 128MB NAND
+          - 内存: 512MB DDR4
+          - USB: USB 3.0 × 1
+          
+          ### 功能特性
+          - CUPS 打印服务 + Avahi 网络发现 + 中文界面
+          - WireGuard VPN + pbr 策略路由
+          - Tailscale 内网穿透
+          - ACME 自动证书
+          - frp 内网穿透
+          - timecontrol 上网时间控制
+          - ksmbd 文件共享
+          - DDNS 动态域名
+          - Full Cone NAT + UPnP
+          - 广告屏蔽 + 性能监控
+          
+          ### 刷机说明
+          1. 通过 TFTP 或 U-Boot 刷入固件
+          2. 默认 IP: 192.168.1.1
+          3. 默认用户名: root，无密码
+          4. 首次启动会自动配置CUPS汉化和Full Cone NAT
+        files: openwrt/release/*
+        draft: false
+        prerelease: false
+
+    # 同时上传到 Artifact（备用）
+    - name: Upload firmware artifact
       uses: actions/upload-artifact@main
-      if: steps.organize.outputs.status == 'success' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && !cancelled()
       with:
-        name: OpenWrt_Official_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: ${{ env.FIRMWARE }}
-
-    - name: Generate release tag
-      id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      run: |
-        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
-        touch release.txt
-        echo "## 🚀 OpenWrt 24.10 固件" >> release.txt
-        echo "" >> release.txt
-        echo "### 📦 包含功能" >> release.txt
-        echo "- ✅ LuCI 中文界面" >> release.txt
-        echo "- ✅ CUPS 打印系统 + AirPrint 支持" >> release.txt
-        echo "- ✅ ksmbd 文件共享" >> release.txt
-        echo "- ✅ SSR-Plus 代理" >> release.txt
-        echo "- ✅ 网络工具 (UPnP, DDNS, WoL, SQM)" >> release.txt
-        echo "- ✅ 广告屏蔽 (adblock)" >> release.txt
-        echo "- ✅ 网络流量统计 (nlbwmon)" >> release.txt
-        echo "- ✅ Web 命令执行 (commands)" >> release.txt
-        echo "- ✅ 断网自动重启 (watchcat)" >> release.txt
-        echo "- ✅ 定时重启 (autoreboot)" >> release.txt
-        echo "" >> release.txt
-        echo "### 🖨️ 打印机驱动" >> release.txt
-        echo "- HP (hplip)" >> release.txt
-        echo "- Gutenprint" >> release.txt
-        echo "" >> release.txt
-        echo "**编译时间**: $(date '+%Y-%m-%d %H:%M:%S')" >> release.txt
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: Upload firmware to Release
-      uses: softprops/action-gh-release@master
-      if: steps.tag.outputs.status == 'success' && !cancelled()
-      with:
-        token: ${{ secrets.RELEASES_TOKEN }}
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        name: "OpenWrt 24.10 - ${{ steps.tag.outputs.release_tag }}"
-        body_path: release.txt
-        files: ${{ env.FIRMWARE }}/*
-
-    - name: Remove old Releases
-      uses: dev-drprasad/delete-older-releases@master
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-        keep_latest: 3
-        delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        name: OpenWrt_24.10_XR30${{ env.FILE_DATE }}
+        path: openwrt/bin/targets/mediatek/filogic/*
