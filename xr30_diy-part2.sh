@@ -44,6 +44,8 @@ done
 if [ -n "$CUPS_ZIP" ]; then
   echo "  找到 CUPS 中文包: $CUPS_ZIP"
   unzip -o "$CUPS_ZIP" -d /tmp/cups-zh
+  # 修复权限（zip可能在Windows上创建，解压后目录缺少执行权限）
+  chmod -R a+rX /tmp/cups-zh
   sync  # 确保文件写入完成
 
   # zip 内结构: CUPS-zh/CUPS-2.4.2/usr_share_cups_templates/*.tmpl
