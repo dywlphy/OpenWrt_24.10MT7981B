@@ -1,13 +1,36 @@
 #!/bin/bash
-echo "===== 配置 feeds 源  ====="
-> feeds.conf
-# 官方源
-echo "src-git packages https://github.com/openwrt/packages.git;openwrt-24.10" >> feeds.conf
-echo "src-git luci https://github.com/openwrt/luci.git;openwrt-24.10" >> feeds.conf
-# 第三方源
-echo "src-git smpackage https://github.com/dywlphy/small-package" >> feeds.conf
-echo "src-git immortalwrt https://github.com/immortalwrt/packages" >> feeds.conf
-# 打印源
-echo "src-git printing https://github.com/tobiaswaldvogel/openwrt-feed-printing" >> feeds.conf
-echo "src-git hplipfeed https://github.com/woniuzfb/openwrt-24-printing-packages" >> feeds.conf
-echo "✅ feeds.conf 配置完成（6个源）"
+#
+# diy-part1.sh - 配置feeds源（在Update feeds之前执行）
+# OpenWrt 24.10 for XR30 (MT7981B)
+#
+
+echo "=========================================="
+echo "OpenWrt 24.10 for XR30 (MT7981B)"
+echo "diy-part1.sh - 配置feeds源"
+echo "=========================================="
+
+# 配置feeds源
+echo "[1/3] 配置feeds源..."
+
+cat > feeds.conf << 'EOF'
+src-git packages https://github.com/openwrt/packages.git;openwrt-24.10
+src-git luci https://github.com/openwrt/luci.git;openwrt-24.10
+src-git printing https://github.com/dywlphy/openwrt-feed-printing.git;main
+src-git timecontrol https://github.com/sirpdboy/luci-app-timecontrol
+src-git frp https://github.com/kuoruan/openwrt-frp.git
+EOF
+
+echo "[2/3] 当前feeds配置:"
+cat feeds.conf
+
+echo ""
+echo "[3/3] OpenWrt版本信息:"
+echo "Branch: openwrt-24.10"
+echo "Target: mediatek/filogic"
+echo "Device: CMCC XR30 (MT7981B)"
+echo "Flash: 128MB NAND"
+echo ""
+
+echo "=========================================="
+echo "diy-part1.sh 执行完成"
+echo "=========================================="
