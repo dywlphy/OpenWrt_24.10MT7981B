@@ -111,12 +111,14 @@ jobs:
         find package/cups-zh-cn/files/usr/share/cups/doc-root/ -type f 2>/dev/null | wc -l
         echo ""
         echo "--- uci-defaults脚本 ---"
+        test -f package/base-files/files/etc/uci-defaults/97-timecontrol-menu && echo "OK: timecontrol菜单修复脚本存在" || echo "FAIL: timecontrol菜单修复脚本不存在"
         test -f package/base-files/files/etc/uci-defaults/98-cups-zh-cn && echo "OK: CUPS脚本存在" || echo "FAIL: CUPS脚本不存在"
         echo ""
         echo "--- cups-zh-cn Makefile ---"
         test -f package/cups-zh-cn/Makefile && echo "OK: Makefile存在" || echo "FAIL: Makefile不存在"
         echo ""
         echo "--- uci-defaults脚本内容检查 ---"
+        head -3 package/base-files/files/etc/uci-defaults/97-timecontrol-menu 2>/dev/null
         head -3 package/base-files/files/etc/uci-defaults/98-cups-zh-cn 2>/dev/null
         echo ""
         echo "--- base-files/files/etc/uci-defaults/ 目录内容 ---"
