@@ -200,6 +200,12 @@ CONFIG_PACKAGE_jq=y
 CONFIG_PACKAGE_chrony=y
 
 # ============================================
+# 定时重启 (autoreboot feed)
+# ============================================
+CONFIG_PACKAGE_luci-app-autoreboot=y
+CONFIG_PACKAGE_luci-i18n-autoreboot-zh-cn=y
+
+# ============================================
 # Tailscale 内网穿透
 # ============================================
 CONFIG_PACKAGE_luci-app-tailscale=y

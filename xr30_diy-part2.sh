@@ -11,22 +11,33 @@ echo "diy-part2.sh - 自定义配置"
 echo "=========================================="
 
 # 1. 设置默认主机名
-echo "[1/6] 设置默认主机名..."
+echo "[1/8] 设置默认主机名..."
 sed -i 's/ImmortalWrt/OpenWrt/g' package/base-files/files/bin/config_generate 2>/dev/null || true
 sed -i 's/OpenWrt/OpenWrt-XR30/g' package/base-files/files/bin/config_generate 2>/dev/null || true
 
 # 2. 设置默认时区为上海
-echo "[2/6] 设置默认时区..."
+echo "[2/8] 设置默认时区..."
 sed -i "s/'UTC'/'CST-8'/g" package/base-files/files/bin/config_generate
 sed -i "/'CST-8'/a \\\t\tset system.@system[-1].zonename='Asia/Shanghai'" package/base-files/files/bin/config_generate
 
 # 3. 设置默认主题为Material
-echo "[3/6] 设置默认主题为Material..."
+echo "[3/8] 设置默认主题为Material..."
 sed -i 's/luci-theme-bootstrap/luci-theme-material/g' feeds/luci/collections/luci/Makefile 2>/dev/null || true
 sed -i 's/luci-theme-bootstrap/luci-theme-material/g' package/feeds/luci/luci/Makefile 2>/dev/null || true
 
+# 3.1 修复 timecontrol 菜单路径（24.10 没有 admin/control 父菜单）
+echo "[3.1/8] 修复 timecontrol 菜单路径..."
+TC_MENU=$(find package/feeds/timecontrol -name "luci-app-timecontrol.json" -path "*/menu.d/*" 2>/dev/null | head -1)
+if [ -n "$TC_MENU" ]; then
+  sed -i 's|"admin/control/|"admin/network/|g' "$TC_MENU"
+  echo "  - 已修复: $TC_MENU"
+  echo "  - 菜单位置: 网络 → Time Control"
+else
+  echo "  - 警告: 未找到 timecontrol 菜单配置文件"
+fi
+
 # 4. 创建 CUPS 中文汉化包
-echo "[4/6] 创建 CUPS 中文汉化包..."
+echo "[4/8] 创建 CUPS 中文汉化包..."
 
 # 创建包目录
 mkdir -p package/cups-zh-cn/files/usr/share/cups/templates
@@ -119,8 +130,25 @@ MAKEEOF
 echo "  - cups-zh-cn 包已创建"
 
 # 5. 创建 uci-defaults 脚本（首次启动执行）
-echo "[5/6] 创建 uci-defaults 脚本..."
+echo "[5/8] 创建 uci-defaults 脚本..."
 mkdir -p package/base-files/files/etc/uci-defaults
+
+# timecontrol 菜单路径修复（首次启动时执行，确保包安装后仍生效）
+cat > package/base-files/files/etc/uci-defaults/97-timecontrol-menu << 'TCEOF'
+#!/bin/sh
+# 修复 timecontrol 菜单路径：admin/control → admin/network
+# 原因：OpenWrt 24.10 没有 admin/control 父菜单，包安装后原始路径无效
+TC_MENU="/usr/share/luci/menu.d/luci-app-timecontrol.json"
+if [ -f "$TC_MENU" ]; then
+    sed -i 's|"admin/control/|"admin/network/|g' "$TC_MENU"
+    echo "timecontrol 菜单路径已修复: 网络 → Time Control"
+fi
+# 清除 LuCI 缓存使菜单生效
+rm -rf /tmp/luci-* 2>/dev/null
+exit 0
+TCEOF
+chmod +x package/base-files/files/etc/uci-defaults/97-timecontrol-menu
+echo "  - timecontrol 菜单修复 uci-defaults脚本已创建"
 
 # CUPS 汉化 + 配置
 cat > package/base-files/files/etc/uci-defaults/98-cups-zh-cn << 'CUPSEOF'
@@ -132,6 +160,13 @@ cat > package/base-files/files/etc/uci-defaults/98-cups-zh-cn << 'CUPSEOF'
 if [ -d /usr/share/cups/templates ]; then
     chmod 644 /usr/share/cups/templates/*.tmpl 2>/dev/null
     echo "CUPS中文模板就绪"
+fi
+
+# 强制覆盖 index.html（CUPS 的英文版可能覆盖了中文版）
+if [ -f /usr/share/cups/doc-root/index.html ] && ! grep -q "首页" /usr/share/cups/doc-root/index.html 2>/dev/null; then
+    sed -i 's|>Home<|>首页<|g; s|>Administration<|>管理<|g; s|>Classes<|>类<|g; s|>Jobs<|>任务<|g; s|>Printers<|>打印机<|g; s|>Help<|>帮助<|g' /usr/share/cups/doc-root/index.html
+    sed -i 's|CUPS for Users|用户|g; s|CUPS for Administrators|管理员|g; s|CUPS for Developers|开发人员|g' /usr/share/cups/doc-root/index.html
+    echo "CUPS首页已汉化"
 fi
 
 # 2. 配置cupsd.conf（局域网访问 + Avahi发现）
@@ -155,6 +190,13 @@ DefaultPolicy default
 </Location>
 
 <Location /admin/conf>
+  AuthType Default
+  Require user @SYSTEM
+  Order allow,deny
+  Allow @LOCAL
+</Location>
+
+<Location /admin/log>
   AuthType Default
   Require user @SYSTEM
   Order allow,deny
@@ -191,6 +233,9 @@ AVAHI
 [ -x /etc/init.d/avahi-daemon ] && /etc/init.d/avahi-daemon enable && /etc/init.d/avahi-daemon reload 2>/dev/null
 [ -x /etc/init.d/cupsd ] && /etc/init.d/cupsd enable && /etc/init.d/cupsd reload 2>/dev/null
 
+# 5. 将默认用户加入 lpadmin 组（允许管理打印机）
+usermod -a -G lpadmin root 2>/dev/null
+
 echo "CUPS配置完成"
 exit 0
 CUPSEOF
@@ -200,7 +245,7 @@ echo "  - CUPS uci-defaults脚本已创建"
 # 注意: MT7981B使用uboot，不需要GRUB超时修改（无99-grub-timeout脚本）
 
 # 6. 添加自定义banner
-echo "[6/6] 添加自定义banner..."
+echo "[6/8] 添加自定义banner..."
 cat > package/base-files/files/etc/banner << 'EOF'
   _______                     ________        __
  |       |.-----.-----.-----.|  |  |  |.----.|  |_
