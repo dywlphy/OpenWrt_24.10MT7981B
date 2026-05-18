@@ -104,24 +104,22 @@ jobs:
         cd openwrt
         echo "=== 自定义配置验证 ==="
         echo ""
-        echo "--- CUPS中文模板文件数 ---"
-        find package/cups-zh-cn/files/usr/share/cups/templates/ -type f 2>/dev/null | wc -l
-        echo ""
-        echo "--- CUPS中文文档文件数 ---"
-        find package/cups-zh-cn/files/usr/share/cups/doc-root/ -type f 2>/dev/null | wc -l
+        echo "--- CUPS中文包检查 ---"
+        test -f package/base-files/files/etc/cups-zh/CUPS-zh.zip && echo "OK: CUPS-zh.zip 已复制到固件 ($(du -h package/base-files/files/etc/cups-zh/CUPS-zh.zip | cut -f1))" || echo "FAIL: CUPS-zh.zip 未找到"
         echo ""
         echo "--- uci-defaults脚本 ---"
+        test -f package/base-files/files/etc/uci-defaults/96-opkg-mirror && echo "OK: opkg国内源脚本存在" || echo "FAIL: opkg国内源脚本不存在"
         test -f package/base-files/files/etc/uci-defaults/97-timecontrol-menu && echo "OK: timecontrol菜单修复脚本存在" || echo "FAIL: timecontrol菜单修复脚本不存在"
         test -f package/base-files/files/etc/uci-defaults/98-cups-zh-cn && echo "OK: CUPS脚本存在" || echo "FAIL: CUPS脚本不存在"
         echo ""
-        echo "--- cups-zh-cn Makefile ---"
-        test -f package/cups-zh-cn/Makefile && echo "OK: Makefile存在" || echo "FAIL: Makefile不存在"
-        echo ""
         echo "--- uci-defaults脚本内容检查 ---"
+        head -3 package/base-files/files/etc/uci-defaults/96-opkg-mirror 2>/dev/null
         head -3 package/base-files/files/etc/uci-defaults/97-timecontrol-menu 2>/dev/null
         head -3 package/base-files/files/etc/uci-defaults/98-cups-zh-cn 2>/dev/null
         echo ""
-        echo "--- base-files/files/etc/uci-defaults/ 目录内容 ---"
+        echo "--- base-files/files/etc/ 目录内容 ---"
+        ls -laR package/base-files/files/etc/cups-zh/ 2>/dev/null
+        echo ""
         ls -la package/base-files/files/etc/uci-defaults/ 2>/dev/null
 
     # SSH调试（可选）
@@ -219,16 +217,16 @@ jobs:
         name: OpenWrt 24.10 XR30 ${{ env.FILE_DATE }}
         body: |
           ## OpenWrt 24.10 for XR30 (MT7981B)
-          
+
           **构建时间**: ${{ env.FILE_DATE }}
-          
+
           ### 设备信息
           - 设备: 中国移动 XR30
           - SoC: 联发科 MT7981B
           - 闪存: 128MB NAND
           - 内存: 512MB DDR4
           - USB: USB 3.0 x 1
-          
+
           ### 功能特性
           - CUPS 打印服务 + Avahi 网络发现 + 中文界面
           - Full Cone NAT (nftables版, kmod-nft-fullcone)
@@ -241,11 +239,11 @@ jobs:
           - DDNS 动态域名
           - HTTPS DNS Proxy (DoH/DoT)
           - 广告屏蔽
-          
+
           ### 精简说明（128MB闪存）
           - 禁用: collectd/htop/ghostscript/cups-filters/lm-sensors/vim
-          - 保留: stun-client(NAT检测)/CIFS(NTFS)/USB/rrdtool1
-          
+          - 保留: stun-client(NAT检测)/CIFS(NTFS)/USB/rrdtool1/unzip
+
           ### 刷机说明
           1. 通过 TFTP 或 U-Boot 刷入固件
           2. 默认 IP: 192.168.1.1
