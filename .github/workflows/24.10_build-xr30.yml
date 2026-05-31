@@ -1,0 +1,158 @@
+name: OpenWrt 24.10 XR30 Build
+
+on:
+  workflow_dispatch:
+
+env:
+  OPENWRT_VERSION: openwrt-24.10
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ack antlr3 asciidoc autoconf automake autopoint \
+            binutils bison build-essential bzip2 ccache clang cmake cpio curl \
+            device-tree-compiler diffutils file flex gawk gcc-multilib g++-multilib \
+            gettext git gperf haveged help2man intltool libc6-dev-i386 libelf-dev \
+            libglib2.0-dev libgmp-dev libmpc-dev libmpfr-dev libncurses5-dev \
+            libpython3-dev libreadline-dev libssl-dev libtool liblzma-dev \
+            libxml2-dev llvm lld make ninja-build patch perl pkgconf python3 \
+            python3-pyelftools python3-setuptools qemu-utils quilt rsync \
+            squashfs-tools tar unzip upx-ucl vim wget xsltproc xxd zlib1g-dev zstd
+
+      - name: Cache dl directory
+        uses: actions/cache@v4
+        with:
+          path: openwrt/dl
+          key: openwrt-dl-xr30-${{ env.OPENWRT_VERSION }}-${{ hashFiles('24.10_config.txt') }}
+          restore-keys: |
+            openwrt-dl-xr30-${{ env.OPENWRT_VERSION }}-
+
+      - name: Clone OpenWrt source
+        run: |
+          git clone --depth 1 --branch $OPENWRT_VERSION https://github.com/openwrt/openwrt.git openwrt
+          cd openwrt
+
+      - name: Run diy-part1.sh
+        run: |
+          cd openwrt
+          cp $GITHUB_WORKSPACE/24.10_diy-part1.sh ./
+          chmod +x 24.10_diy-part1.sh
+          bash 24.10_diy-part1.sh
+
+      - name: Update feeds
+        run: |
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Run diy-part2.sh
+        run: |
+          cd openwrt
+          cp $GITHUB_WORKSPACE/24.10_diy-part2.sh ./
+          chmod +x 24.10_diy-part2.sh
+          bash 24.10_diy-part2.sh
+
+      - name: Load config
+        run: |
+          cd openwrt
+          cp $GITHUB_WORKSPACE/24.10_config.txt .config
+          make defconfig
+          # 强制恢复 i18n 包（defconfig 会错误丢弃）
+          grep "^CONFIG_PACKAGE_luci-i18n-.*-zh-cn=y" $GITHUB_WORKSPACE/24.10_config.txt 2>/dev/null | sed 's/^CONFIG_PACKAGE_//;s/=y$//' | while read pkg; do
+              if [ -n "$pkg" ]; then
+                  sed -i "s/# CONFIG_PACKAGE_${pkg} is not set/CONFIG_PACKAGE_${pkg}=y/" .config
+              fi
+          done
+          echo "i18n 中文包已恢复"
+
+      - name: Download dependencies
+        run: |
+          cd openwrt
+          make download -j$(nproc) || make download -j1 V=s
+
+      - name: Build firmware
+        id: compile
+        run: |
+          cd openwrt
+          make -j$(nproc) V=s || make -j1 V=s
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Set environment variables
+        if: steps.compile.outputs.status == 'success'
+        run: |
+          cd openwrt
+          DEVICE_NAME="xr30"
+          FILE_DATE=$(date +"%Y%m%d-%H%M")
+          echo "DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
+          echo "FILE_DATE=$FILE_DATE" >> $GITHUB_ENV
+
+      - name: Package firmware
+        if: steps.compile.outputs.status == 'success'
+        run: |
+          cd openwrt
+          mkdir -p release
+          cp bin/targets/mediatek/filogic/*.itb release/ 2>/dev/null || true
+          cp bin/targets/mediatek/filogic/*-squashfs-sysupgrade.bin release/ 2>/dev/null || true
+          cp bin/targets/mediatek/filogic/*.sha256sums release/ 2>/dev/null || true
+
+      - name: Upload to GitHub Release
+        if: steps.compile.outputs.status == 'success'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v24.10-xr30-${{ env.FILE_DATE }}
+          name: OpenWrt 24.10 XR30 ${{ env.FILE_DATE }}
+          body: |
+            ## OpenWrt 24.10 CMCC XR30 (MT7981B) Cloud Build
+
+            **构建时间**: ${{ env.FILE_DATE }}
+            **目标设备**: CMCC XR30 / RAX3000M (MT7981B, 256MB RAM, 128MB NAND)
+
+            ### 功能特性
+            - ✅ LuCI 中文界面
+            - ✅ ksmbd 文件共享
+            - ✅ WireGuard VPN + pbr 策略路由
+            - ✅ Tailscale / frp 内网穿透
+            - ✅ 上网时间控制 (timecontrol)
+            - ✅ 广告屏蔽 (adblock)
+            - ✅ 网络工具 (UPnP, DDNS, WoL, SQM)
+            - ✅ 网络流量统计 (nlbwmon)
+            - ✅ Web 命令执行 (commands)
+            - ✅ 断网自动重启 (watchcat)
+            - ✅ HTTPS DNS Proxy (DoH/DoT)
+            - ✅ 文件管理器 (filemanager)
+            - ✅ 软件包管理 (package-manager)
+            - ✅ 终端 (ttyd)
+            - ✅ ACME (Let's Encrypt)
+            - ✅ IPv6 完整支持
+            - ✅ 硬件流量卸载 (flow offloading)
+            - ✅ 性能监控 (collectd)
+            - ✅ Nikki 代理 (mihomo)
+            - ✅ OpenClash 代理
+
+            ### 使用说明
+            1. 通过 breed/tftp 刷入 initramfs.itb 启动
+            2. 启动后 sysupgrade 刷入 squashfs-sysupgrade.bin
+            3. 默认 IP: 192.168.1.1
+            4. 默认用户名: root，密码: admin
+          files: openwrt/release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@main
+        if: steps.compile.outputs.status == 'success' && !cancelled()
+        with:
+          name: OpenWrt_24.10_XR30_${{ env.FILE_DATE }}
+          path: openwrt/bin/targets/mediatek/filogic/*
