@@ -112,7 +112,11 @@ cat > package/base-files/files/etc/uci-defaults/100-disable-services << 'EOF'
 # 代理相关（与 OpenClash 功能重叠或冲突）
 /etc/init.d/https-dns-proxy disable  2>/dev/null
 /etc/init.d/nikki disable           2>/dev/null
+# OpenClash 关闭，关闭版本更新检查
 /etc/init.d/openclash disable       2>/dev/null
+uci set openclash.config.enable_update=0 2>/dev/null
+uci set openclash.config.config_update_weekly=0 2>/dev/null
+uci commit openclash 2>/dev/null
 
 # VPN 相关（按需启用）
 /etc/init.d/tailscale disable       2>/dev/null
