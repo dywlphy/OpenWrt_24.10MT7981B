@@ -84,7 +84,7 @@ jobs:
         id: compile
         run: |
           cd openwrt
-          make -j$(nproc) V=s || make -j1 V=s
+          make -j2 V=s || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Set environment variables
