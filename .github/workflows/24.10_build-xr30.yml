@@ -29,6 +29,11 @@ jobs:
             python3-pyelftools python3-setuptools qemu-utils quilt rsync \
             squashfs-tools tar unzip upx-ucl vim wget xsltproc xxd zlib1g-dev zstd
 
+      - name: Clone OpenWrt source
+        run: |
+          git clone --depth 1 --branch $OPENWRT_VERSION https://github.com/openwrt/openwrt.git openwrt
+          cd openwrt
+
       - name: Cache dl directory
         uses: actions/cache@v4
         with:
@@ -36,11 +41,6 @@ jobs:
           key: openwrt-dl-xr30-${{ env.OPENWRT_VERSION }}-${{ hashFiles('24.10_config.txt') }}
           restore-keys: |
             openwrt-dl-xr30-${{ env.OPENWRT_VERSION }}-
-
-      - name: Clone OpenWrt source
-        run: |
-          git clone --depth 1 --branch $OPENWRT_VERSION https://github.com/openwrt/openwrt.git openwrt
-          cd openwrt
 
       - name: Run diy-part1.sh
         run: |
