@@ -98,25 +98,39 @@ exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/98-luci-fix
 
+# OpenClash 配置（禁用版本更新检查）
+cat > package/base-files/files/etc/uci-defaults/99-openclash-settings << 'EOF'
+#!/bin/sh
+# 等待 OpenClash 配置文件生成
+for i in 1 2 3 4 5; do
+    if [ -f /etc/config/openclash ]; then
+        uci set openclash.config.check_version='0'
+        uci set openclash.config.check_dev_version='0'
+        uci commit openclash
+        break
+    fi
+    sleep 1
+done
+exit 0
+EOF
+chmod +x package/base-files/files/etc/uci-defaults/99-openclash-settings
+
 # 预设root密码（首次登录后请立即修改）
-cat > package/base-files/files/etc/uci-defaults/99-set-password << 'EOF'
+cat > package/base-files/files/etc/uci-defaults/99A-set-password << 'EOF'
 #!/bin/sh
 echo -e "admin\nadmin" | passwd root
 exit 0
 EOF
-chmod +x package/base-files/files/etc/uci-defaults/99-set-password
+chmod +x package/base-files/files/etc/uci-defaults/99A-set-password
 
 # 禁用不需要默认启动的服务（按需手动开启）
 cat > package/base-files/files/etc/uci-defaults/100-disable-services << 'EOF'
 #!/bin/sh
-# 代理相关（与 OpenClash 功能重叠或冲突）
+# 代理相关
 /etc/init.d/https-dns-proxy disable  2>/dev/null
 /etc/init.d/nikki disable           2>/dev/null
-# OpenClash 关闭，关闭版本更新检查
+# OpenClash 默认关闭（用户配置好后手动启用）
 /etc/init.d/openclash disable       2>/dev/null
-uci set openclash.config.enable_update=0 2>/dev/null
-uci set openclash.config.config_update_weekly=0 2>/dev/null
-uci commit openclash 2>/dev/null
 
 # VPN 相关（按需启用）
 /etc/init.d/tailscale disable       2>/dev/null
@@ -169,27 +183,37 @@ cat > package/base-files/files/etc/banner << 'EOF'
  -----------------------------------------------------
 EOF
 
-# 修复 missing-macros 缺少 bin 目录的问题（tmpfs重启后必现）
-echo "[6/8] 修复 missing-macros..."
-mkdir -p tools/missing-macros/src/bin
-touch tools/missing-macros/src/bin/.placeholder
-
 # 拉取 OpenClash（git_sparse_clone 是 Makefile 函数，只能用普通 git）
-echo "[7/8] 拉取 OpenClash..."
+echo "[6/8] 拉取 OpenClash..."
 if [ ! -d "package/luci-app-openclash" ]; then
-    git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/small-package.git openclash-tmp
-    cd openclash-tmp
-    git sparse-checkout set luci-app-openclash
-    cd ..
-    mv openclash-tmp/luci-app-openclash package/
-    rm -rf openclash-tmp
-    echo " OpenClash 已拉取"
+    CLONE_SUCCESS=0
+    for i in 1 2 3; do
+        echo " clone 尝试 $i/3..."
+        if git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/small-package.git openclash-tmp; then
+            cd openclash-tmp
+            git sparse-checkout set luci-app-openclash
+            cd ..
+            if [ -d "openclash-tmp/luci-app-openclash" ]; then
+                mv openclash-tmp/luci-app-openclash package/
+                rm -rf openclash-tmp
+                CLONE_SUCCESS=1
+                echo " OpenClash 已拉取"
+                break
+            fi
+            rm -rf openclash-tmp
+        fi
+        echo " clone 失败，重试..."
+        sleep 5
+    done
+    if [ "$CLONE_SUCCESS" -eq 0 ]; then
+        echo " 警告：OpenClash clone 失败，跳过"
+    fi
 else
     echo " OpenClash 已存在，跳过"
 fi
 
 # 预下载 OpenClash 核心（解决国内无法下载问题）
-echo "[8/8] 预下载 OpenClash 核心..."
+echo "[7/8] 预下载 OpenClash 核心..."
 CORE_FILE="clash-linux-armv8.tar.gz"
 CORE_URL="https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-armv8.tar.gz"
 # 核心放到 base-files 才能打包进固件
