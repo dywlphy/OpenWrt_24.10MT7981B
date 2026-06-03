@@ -230,6 +230,7 @@ if [ -d "package/luci-app-openclash" ]; then
         curl -sL -o /tmp/$CORE_FILE "$CORE_URL"
         # 下载成功后保存到 dl 目录
         if [ -f "/tmp/$CORE_FILE" ] && [ -s "/tmp/$CORE_FILE" ]; then
+            mkdir -p dl
             cp /tmp/$CORE_FILE dl/
             echo " 核心已缓存到 dl 目录"
         fi
