@@ -80,6 +80,14 @@ jobs:
           cd openwrt
           make download -j$(nproc) || make download -j1 V=s
 
+      - name: Create swap space
+        run: |
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Build firmware
         id: compile
         run: |
